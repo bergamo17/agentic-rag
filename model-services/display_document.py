@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-from pdf2image import convert_from_path
 from load_documents import PDFs
 
 def display_pdf_images(images_list):
@@ -20,6 +19,4 @@ def display_pdf_images(images_list):
     plt.tight_layout()
     plt.show()
 
-for pdf in PDFs:
-    pdf['images'] = convert_from_path(f"{pdf['title']}.pdf")
 display_pdf_images(PDFs[0]["images"][:10])

@@ -1,0 +1,10 @@
+accelerate
+colpali-engine
+qwen-vl-utils
+transformers
+matplotlib
+numpy
+scikit-learn
+pillow
+torch
+pdf2image
