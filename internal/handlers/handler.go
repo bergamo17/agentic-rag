@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 
@@ -79,18 +80,38 @@ func (h *Handlers) Chat(c *gin.Context) {
 		return
 	}
 
-	images := make([]string, len(pages))
+	pageContext := make([]openai.PageContext, len(pages))
 	pageMeta := make([]gin.H, len(pages))
 	for i, p := range pages {
-		images[i] = p.ImageBase64
+		pageContext[i] = openai.PageContext{
+			PageNumber:  p.PageNumber,
+			Title:       p.Title,
+			ImageBase64: p.ImageBase64,
+		}
 		pageMeta[i] = gin.H{"title": p.Title, "page_number": p.PageNumber}
 	}
 
-	answer, err := h.OpenAI.QueryVLM(req.Query, images)
+	rawAnswer, err := h.OpenAI.QueryVLM(req.Query, pageContext)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"answer": answer, "pages": pageMeta})
+	var llmResp struct {
+		Answer    string `json:"answer"`
+		Citations []struct {
+			PageNumber int    `json:"page_number"`
+			Quote      string `json:"quote"`
+		} `json:"citations"`
+	}
+	if err := json.Unmarshal([]byte(rawAnswer), &llmResp); err != nil {
+		c.JSON(http.StatusOK, gin.H{"answer": rawAnswer, "pages": pageMeta})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"answer":    llmResp.Answer,
+		"citations": llmResp.Citations,
+		"pages":     pageMeta,
+	})
 }

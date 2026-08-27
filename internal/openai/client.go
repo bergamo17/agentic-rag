@@ -41,10 +41,15 @@ type message struct {
 	Content interface{} `json:"content"`
 }
 
+type responseFormat struct {
+	Type string `json:"type"`
+}
+
 type chatRequest struct {
-	Model     string    `json:"model"`
-	Messages  []message `json:"messages"`
-	MaxTokens int       `json:"max_tokens"`
+	Model          string         `json:"model"`
+	Messages       []message      `json:"messages"`
+	MaxTokens      int            `json:"max_tokens"`
+	ResponseFormat responseFormat `json:"response_format"`
 }
 
 type chatResponse struct {
@@ -55,14 +60,35 @@ type chatResponse struct {
 	} `json:"choices"`
 }
 
-const systemPrompt = "You are an expert professional PDF analyst who gives rigorous in-depth answers."
+type PageContext struct {
+	PageNumber  int
+	Title       string
+	ImageBase64 string
+}
 
-func (c *Client) QueryVLM(query string, imageBase64 []string) (string, error) {
-	content := make([]contentBlock, 0, len(imageBase64)+1)
-	for _, img := range imageBase64 {
+const systemPrompt = `You are an expert professional PDF analyst. When answering, you MUST cite your sources.
+
+For every claim in your answer, indicate which page number it came from, and include a short supporting quote (under 15 words) copied exactly from that page's visible text.
+
+Respond ONLY in this exact JSON format, no other text:
+{
+  "answer": "your full answer here",
+  "citations": [
+    {"page_number": 1, "quote": "short exact quote from that page"},
+    {"page_number": 2, "quote": "another short exact quote"}
+  ]
+}`
+
+func (c *Client) QueryVLM(query string, pages []PageContext) (string, error) {
+	content := make([]contentBlock, 0, len(pages)+1)
+	for _, p := range pages {
+		content = append(content, contentBlock{
+			Type: "text",
+			Text: fmt.Sprintf("The following image is Page %d of \"%s\":", p.PageNumber, p.Title),
+		})
 		content = append(content, contentBlock{
 			Type:     "image_url",
-			ImageURL: &imageURL{URL: "data:image/png;base64," + img},
+			ImageURL: &imageURL{URL: "data:image/png;base64," + p.ImageBase64},
 		})
 	}
 	content = append(content, contentBlock{Type: "text", Text: query})
@@ -73,7 +99,8 @@ func (c *Client) QueryVLM(query string, imageBase64 []string) (string, error) {
 			{Role: "system", Content: systemPrompt},
 			{Role: "user", Content: content},
 		},
-		MaxTokens: 1000,
+		MaxTokens:      1000,
+		ResponseFormat: responseFormat{Type: "json_object"},
 	}
 
 	payload, err := json.Marshal(reqBody)
