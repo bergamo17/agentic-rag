@@ -19,10 +19,9 @@ PDFs = []
 
 def _rebuild_index():
     global _embeddings, _data
-    all_embeddings = [
-        emb.float().numpy() for pdf in PDFs for emb in pdf["page_embeddings"]
+    _embeddings = [
+        emb.float() for pdf in PDFs for emb in pdf["page_embeddings"]
     ]
-    _embeddings = np.stack(all_embeddings) if all_embeddings else None
     _data = []
     for pdf in PDFs:
         for page_idx in range(len(pdf["images"])):
@@ -84,12 +83,12 @@ async def do_retrieve(req: RetrieveRequest):
     query_inputs = {k: v.to(model.device) for k,v in query_inputs.items()}
 
     with torch.no_grad():
-        query_embedding = model(**query_inputs).embeddings().float().cpu().numpy()
+        query_embedding = model(**query_inputs).embeddings
 
-    query_embedding = query_embedding / np.linalg.norm(query_embedding)
+    scores = processor.score_retrieval(query_embedding.cpu(), _embeddings)
+    scores = scores[0]
 
-    cos_sim = cosine_similarity(query_embedding, _embeddings)[0]
-    top_idx = np.argsort(cos_sim)[::-1][:req.k]
+    top_idx = torch.argsort(scores, descending=True)[:req.k].tolist()
 
     results = []
     for i in top_idx:

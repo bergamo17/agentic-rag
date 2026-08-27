@@ -43,8 +43,8 @@ type message struct {
 
 type chatRequest struct {
 	Model     string    `json:"model"`
-	Messages  []message `json:"message"`
-	MaxTokens int       `json:"max_token"`
+	Messages  []message `json:"messages"`
+	MaxTokens int       `json:"max_tokens"`
 }
 
 type chatResponse struct {
@@ -62,7 +62,7 @@ func (c *Client) QueryVLM(query string, imageBase64 []string) (string, error) {
 	for _, img := range imageBase64 {
 		content = append(content, contentBlock{
 			Type:     "image_url",
-			ImageURL: &imageURL{URL: "data:image/png;base64" + img},
+			ImageURL: &imageURL{URL: "data:image/png;base64," + img},
 		})
 	}
 	content = append(content, contentBlock{Type: "text", Text: query})

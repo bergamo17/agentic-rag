@@ -1,7 +1,8 @@
 from transformers import ColQwen2ForRetrieval, ColQwen2Processor
 import torch
 
-device = "mps" if torch.backends.mps.is_available() else "cpu"
+# device = "mps" if torch.backends.mps.is_available() else "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {device}")
 
 model_name = "vidore/colqwen2-v1.0-hf"
