@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"io"
 	"net/http"
 
@@ -88,30 +87,21 @@ func (h *Handlers) Chat(c *gin.Context) {
 			Title:       p.Title,
 			ImageBase64: p.ImageBase64,
 		}
-		pageMeta[i] = gin.H{"title": p.Title, "page_number": p.PageNumber}
+		pageMeta[i] = gin.H{
+			"title":       p.Title,
+			"page_number": p.PageNumber,
+			"page_image":  p.ImageBase64,
+		}
 	}
 
-	rawAnswer, err := h.OpenAI.QueryVLM(req.Query, pageContext)
+	answer, err := h.OpenAI.QueryVLM(req.Query, pageContext)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
 
-	var llmResp struct {
-		Answer    string `json:"answer"`
-		Citations []struct {
-			PageNumber int    `json:"page_number"`
-			Quote      string `json:"quote"`
-		} `json:"citations"`
-	}
-	if err := json.Unmarshal([]byte(rawAnswer), &llmResp); err != nil {
-		c.JSON(http.StatusOK, gin.H{"answer": rawAnswer, "pages": pageMeta})
-		return
-	}
-
 	c.JSON(http.StatusOK, gin.H{
-		"answer":    llmResp.Answer,
-		"citations": llmResp.Citations,
-		"pages":     pageMeta,
+		"answer": answer,
+		"pages":  pageMeta,
 	})
 }

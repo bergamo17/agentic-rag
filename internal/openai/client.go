@@ -41,15 +41,10 @@ type message struct {
 	Content interface{} `json:"content"`
 }
 
-type responseFormat struct {
-	Type string `json:"type"`
-}
-
 type chatRequest struct {
-	Model          string         `json:"model"`
-	Messages       []message      `json:"messages"`
-	MaxTokens      int            `json:"max_tokens"`
-	ResponseFormat responseFormat `json:"response_format"`
+	Model     string    `json:"model"`
+	Messages  []message `json:"messages"`
+	MaxTokens int       `json:"max_tokens"`
 }
 
 type chatResponse struct {
@@ -66,18 +61,7 @@ type PageContext struct {
 	ImageBase64 string
 }
 
-const systemPrompt = `You are an expert professional PDF analyst. When answering, you MUST cite your sources.
-
-For every claim in your answer, indicate which page number it came from, and include a short supporting quote (under 15 words) copied exactly from that page's visible text.
-
-Respond ONLY in this exact JSON format, no other text:
-{
-  "answer": "your full answer here",
-  "citations": [
-    {"page_number": 1, "quote": "short exact quote from that page"},
-    {"page_number": 2, "quote": "another short exact quote"}
-  ]
-}`
+const systemPrompt = `You are an expert professional PDF analyst who gives rigorous in-depth answers. When relevant, mention which page number supports your claims.`
 
 func (c *Client) QueryVLM(query string, pages []PageContext) (string, error) {
 	content := make([]contentBlock, 0, len(pages)+1)
@@ -99,8 +83,7 @@ func (c *Client) QueryVLM(query string, pages []PageContext) (string, error) {
 			{Role: "system", Content: systemPrompt},
 			{Role: "user", Content: content},
 		},
-		MaxTokens:      1000,
-		ResponseFormat: responseFormat{Type: "json_object"},
+		MaxTokens: 1000,
 	}
 
 	payload, err := json.Marshal(reqBody)
