@@ -18,7 +18,8 @@ func main() {
 
 	mlServiceURL := os.Getenv("ML_SERVICE_URL")
 	if mlServiceURL == "" {
-		mlServiceURL = "https://zm35wvtq-8001.use2.devtunnels.ms"
+		mlServiceURL = "http://localhost:8001"
+		// mlServiceURL = "https://zm35wvtq-8001.use2.devtunnels.ms"
 	}
 
 	mlClient := mlservice.NewClient(mlServiceURL)
