@@ -36,29 +36,96 @@ type contentBlock struct {
 	ImageURL *imageURL `json:"image_url,omitempty"`
 }
 
-type message struct {
-	Role    string      `json:"role"`
-	Content interface{} `json:"content"`
+type FunctionSpec struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Parameters  map[string]any `json:"parameters"`
+}
+
+type Tool struct {
+	Type     string       `json:"type"`
+	Function FunctionSpec `json:"function"`
+}
+
+type ToolCall struct {
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Function struct {
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"`
+	} `json:"function"`
+}
+
+type Message struct {
+	Role       string      `json:"role"`
+	Content    interface{} `json:"content,omitempty"`
+	ToolCall   []ToolCall  `json:"tool_calls,omitempty"`
+	ToolCallID string      `json:"tool_call_id,omitempty"`
 }
 
 type chatRequest struct {
 	Model     string    `json:"model"`
-	Messages  []message `json:"messages"`
+	Messages  []Message `json:"messages"`
+	Tools     []Tool    `json:"tools,omitempty"`
 	MaxTokens int       `json:"max_tokens"`
 }
 
 type chatResponse struct {
 	Choices []struct {
-		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
+		Message Message `json:"message"`
 	} `json:"choices"`
 }
 
 type PageContext struct {
+	DocumentID  string
 	PageNumber  int
 	Title       string
 	ImageBase64 string
+}
+
+func (c *Client) ChatCompletion(message []Message, tools []Tool) (Message, error) {
+	reqBody := chatRequest{
+		Model:     modelName,
+		Messages:  message,
+		Tools:     tools,
+		MaxTokens: 1000,
+	}
+
+	payload, err := json.Marshal(reqBody)
+	if err != nil {
+		return Message{}, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, apiURL, bytes.NewReader(payload))
+	if err != nil {
+		return Message{}, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.APIKey)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return Message{}, err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return Message{}, fmt.Errorf("OpenAI API error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var result chatResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return Message{}, fmt.Errorf("Empty response from OpenAI API")
+	}
+
+	if len(result.Choices) == 0 {
+		return Message{}, fmt.Errorf("There is no choices in response")
+	}
+
+	return result.Choices[0].Message, nil
 }
 
 const systemPrompt = `You are an expert professional PDF analyst who gives rigorous in-depth answers. When relevant, mention which page number supports your claims.`
@@ -79,7 +146,7 @@ func (c *Client) QueryVLM(query string, pages []PageContext) (string, error) {
 
 	reqBody := chatRequest{
 		Model: modelName,
-		Messages: []message{
+		Messages: []Message{
 			{Role: "system", Content: systemPrompt},
 			{Role: "user", Content: content},
 		},
@@ -115,5 +182,10 @@ func (c *Client) QueryVLM(query string, pages []PageContext) (string, error) {
 		return "", fmt.Errorf("response kosong dari OpenAI API")
 	}
 
-	return result.Choices[0].Message.Content, nil
+	answer, ok := result.Choices[0].Message.Content.(string)
+	if !ok {
+		return "", fmt.Errorf("Response is not a text: %v", result.Choices[0].Message.Content)
+	}
+
+	return answer, nil
 }

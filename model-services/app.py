@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from io import BytesIO
 
 from qdrant_client import QdrantClient, models
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 from sklearn.metrics.pairwise import cosine_similarity
 from pdf2image import convert_from_path
@@ -54,9 +54,10 @@ async def embed(file: UploadFile = File(...)):
 
     try:
         title = os.path.splitext(file.filename)[0]
+        document_id = str(uuid.uuid4())
         images = convert_from_path(tmp_path)
 
-        points = []
+        total_points = 0
         batch_size = 4
         for i in range(0, len(images), batch_size):
             batch_images = images[i:i + batch_size]
@@ -66,6 +67,8 @@ async def embed(file: UploadFile = File(...)):
                 embeddings = model(**inputs).embeddings
             embeddings = embeddings.cpu().float()
 
+            batch_points = []
+
             for j, emb in enumerate(embeddings):
                 page_idx = i + j
                 if page_idx >= len(images):
@@ -73,22 +76,25 @@ async def embed(file: UploadFile = File(...)):
 
                 image_path = f"storage/pages/{uuid.uuid4()}.png"
                 images[page_idx].save(image_path, format="PNG")
-                points.append(models.PointStruct(
+                batch_points.append(models.PointStruct(
                     id=str(uuid.uuid4()),
                     vector={"colqwen": emb.tolist()},
                     payload={
+                        "document_id": document_id,
                         "title": title,
                         "page_number": page_idx + 1,
                         "image_path": image_path,
                     },
                 ))
- 
-        qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
+
+            if batch_points:
+                qdrant.upsert(collection_name=COLLECTION_NAME, points=batch_points)
+                total_points += len(batch_points)
         
     finally:
         os.remove(tmp_path)
 
-    return {"title": title, "num_pages": len(images)}
+    return {"document_id": document_id, "title": title, "num_pages": len(images)}
 
 class RetrieveRequest(BaseModel):
     query: str
@@ -119,11 +125,64 @@ async def do_retrieve(req: RetrieveRequest):
         with open(payload["image_path"], "rb") as f:
             img_b64 = base64.b64encode(f.read()).decode("utf-8")
         results.append({
+            "document_id": payload["document_id"],
             "title": payload["title"],
             "page_number": payload["page_number"],
             "image_base64": img_b64,
         })
     return {"pages": results}
+
+@app.get("/page")
+async def get_page(document_id: str, page_number: int):
+    scroll_result = qdrant.scroll(
+        collection_name=COLLECTION_NAME,
+        scroll_filter=models.Filter(
+            must=[
+                models.FieldCondition(key='document_id', match=models.MatchValue(value=document_id)),
+                models.FieldCondition(key='page_number', match=models.MatchValue(value=page_number)),
+            ]
+        ),
+        limit=1,
+    )
+    points, _ = scroll_result
+    if not points:
+        raise HTTPException(status_code=404, detail="This page is not found")
+
+    payload = points[0].payload
+    with open(payload['image_path'], 'rb') as f:
+        img_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+    return {
+        "document_id": payload["document_id"],
+        "title": payload["title"],
+        "page_number": payload["page_number"],
+        "image_base64": img_b64,
+    }
+
+@app.get("/documents")
+async def list_documents():
+    all_points = []
+    next_offset = None
+    while True:
+        points, next_offset = qdrant.scroll(
+            collection_name=COLLECTION_NAME, 
+            limit=200,
+            offset=next_offset,
+            with_payload=["document_id", "title"],
+        )
+        all_points.extend(points)
+        if next_offset is None:
+            break
+
+    docs = {}
+    for p in all_points:
+        doc_id = p.payload["document_id"]
+        title = p.payload["title"]
+        if doc_id not in docs:
+            docs[doc_id] = {"document_id": doc_id, "title": title, "num_pages": 0}
+        docs[doc_id]['num_pages'] += 1
+
+    return {"documents": list(docs.values())}
 
 if __name__ == "__main__":
     import uvicorn

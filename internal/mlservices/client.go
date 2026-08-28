@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 )
 
 type Client struct {
@@ -19,8 +20,9 @@ func NewClient(baseURL string) *Client {
 }
 
 type EmbedResult struct {
-	Title    string `json:"title"`
-	NumPages int    `json:"num_pages"`
+	DocumentID string `json:"document_id"`
+	Title      string `json:"title"`
+	NumPages   int    `json:"num_pages"`
 }
 
 func (c *Client) EmbedDocument(filename string, fileBytes []byte) (*EmbedResult, error) {
@@ -62,6 +64,7 @@ func (c *Client) EmbedDocument(filename string, fileBytes []byte) (*EmbedResult,
 }
 
 type RetrievedPage struct {
+	DocumentID  string `json:"document_id"`
 	Title       string `json:"title"`
 	PageNumber  int    `json:"page_number"`
 	ImageBase64 string `json:"image_base64"`
@@ -91,4 +94,60 @@ func (c *Client) Retrieve(query string, k int) ([]RetrievedPage, error) {
 	}
 
 	return result.Pages, nil
+}
+
+func (c *Client) GetPage(documentID string, pageNumber int) (*RetrievedPage, error) {
+	params := url.Values{}
+	params.Set("document_id", documentID)
+	params.Set("page_number", fmt.Sprintf("%d", pageNumber))
+
+	requestUrl := fmt.Sprintf("%s/page?%s", c.BaseURL, params.Encode())
+
+	resp, err := c.HTTPClient.Get(requestUrl)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("Model-service error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var result RetrievedPage
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+type DocumentInfo struct {
+	DocumentID string `json:"document_id"`
+	Title      string `json:"title"`
+	NumPages   int    `json:"num_pages"`
+}
+
+type listDocumentsResponse struct {
+	Documents []DocumentInfo `json:"documents"`
+}
+
+func (c *Client) ListDocuments() ([]DocumentInfo, error) {
+	resp, err := c.HTTPClient.Get(c.BaseURL + "/documents")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("Model-service error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var result listDocumentsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return result.Documents, nil
 }

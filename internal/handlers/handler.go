@@ -6,19 +6,23 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/bergamo17/agentic-rag-prototype/internal/agent"
 	mlservice "github.com/bergamo17/agentic-rag-prototype/internal/mlservices"
 	"github.com/bergamo17/agentic-rag-prototype/internal/openai"
+	"github.com/bergamo17/agentic-rag-prototype/internal/websearch"
 )
 
 type Handlers struct {
 	ML     *mlservice.Client
 	OpenAI *openai.Client
+	Web    *websearch.Client
 }
 
-func New(mlClient *mlservice.Client, openaiClient *openai.Client) *Handlers {
+func New(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *websearch.Client) *Handlers {
 	return &Handlers{
 		ML:     mlClient,
 		OpenAI: openaiClient,
+		Web:    webClient,
 	}
 }
 
@@ -98,6 +102,47 @@ func (h *Handlers) Chat(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"answer": answer,
+		"pages":  pageMeta,
+	})
+}
+
+func (h *Handlers) ChatAgent(c *gin.Context) {
+	var req ChatRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	messages := []openai.Message{
+		{
+			Role:    "system",
+			Content: "You are a helpful assistant that can search documents and the web to answer questions.",
+		},
+		{
+			Role:    "user",
+			Content: req.Query,
+		},
+	}
+
+	answer, pages, err := agent.AgentLoop(h.OpenAI, h.Web, h.ML, messages)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+
+	pageMeta := make([]gin.H, len(pages))
+	for i, p := range pages {
+		pageMeta[i] = gin.H{
+			"document_id": p.DocumentID,
+			"title":       p.Title,
+			"page_number": p.PageNumber,
+			"page_image":  p.ImageBase64,
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
