@@ -129,7 +129,7 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		},
 	}
 
-	answer, pages, err := agent.AgentLoop(h.OpenAI, h.Web, h.ML, messages)
+	answer, pages, isPartial, err := agent.AgentLoop(h.OpenAI, h.Web, h.ML, messages)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
@@ -146,7 +146,8 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"answer": answer,
-		"pages":  pageMeta,
+		"answer":     answer,
+		"pages":      pageMeta,
+		"is_partial": isPartial,
 	})
 }

@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 
 	mlservice "github.com/bergamo17/agentic-rag-prototype/internal/mlservices"
@@ -107,28 +108,31 @@ func AgentLoop(
 	webClient *websearch.Client,
 	mlClient *mlservice.Client,
 	messages []openai.Message,
-) (string, []openai.PageContext, error) {
+) (string, []openai.PageContext, bool, error) {
 	const maxItterations = 5
 	var usedPages []openai.PageContext
 
 	for i := 0; i < maxItterations; i++ {
+		log.Printf("Itteration- %d started", i)
 		resp, err := opeaiClient.ChatCompletion(messages, AvailableTools())
 		if err != nil {
-			return "", nil, err
+			return "", nil, false, err
 		}
 
 		if len(resp.ToolCall) == 0 {
 			answer, _ := resp.Content.(string)
-			return answer, usedPages, nil
+			return answer, usedPages, false, nil
 		}
 
 		messages = append(messages, resp)
 
 		for _, tc := range resp.ToolCall {
+			log.Printf("Tool called: %s | Arguments: %s", tc.Function.Name, tc.Function.Arguments)
 			result, pages, err := executeTool(mlClient, webClient, tc)
 			if err != nil {
 				result = fmt.Sprintf("Error executing tool: %s", err)
 			}
+			log.Printf("Called Tool result: %s", result)
 
 			if len(pages) > 0 {
 				usedPages = append(usedPages, pages...)
@@ -142,5 +146,21 @@ func AgentLoop(
 		}
 	}
 
-	return "", usedPages, fmt.Errorf("Max itterations (%d) reached without final answer", maxItterations)
+	messages = append(messages, openai.Message{
+		Role:     "system",
+		Content:  "You have reached the maximum limit for search steps. Do not call the tool again. Based on all the information you have gathered so far, provide the best answer you can formulate now, and indicate which parts may still be incomplete.",
+		ToolCall: []openai.ToolCall{},
+	})
+
+	finalResp, err := opeaiClient.ChatCompletion(messages, []openai.Tool{})
+	if err != nil {
+		return "", nil, false, err
+	}
+
+	finalAnswer, ok := finalResp.Content.(string)
+	if !ok {
+		return "Sorry, unable to compile a summary of the answer.", usedPages, false, nil
+	}
+
+	return finalAnswer, usedPages, true, nil
 }

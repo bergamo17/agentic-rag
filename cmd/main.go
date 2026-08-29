@@ -82,13 +82,18 @@ func runCLI(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *
 			Content: input,
 		})
 
-		answer, pages, err := agent.AgentLoop(openaiClient, webClient, mlClient, messages)
+		answer, pages, isPartial, err := agent.AgentLoop(openaiClient, webClient, mlClient, messages)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			continue
 		}
 
-		fmt.Printf("\nAgent: %s\n", answer)
+		if isPartial == true {
+			fmt.Printf("\nAgent: [Disclaimer] The final Answer is partially completed > %s\n", answer)
+		} else {
+			fmt.Printf("\nAgent: %s\n", answer)
+		}
+
 		if len(pages) > 0 {
 			fmt.Println("\n[Referenced pages]")
 			for _, p := range pages {
