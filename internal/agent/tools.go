@@ -72,5 +72,31 @@ func AvailableTools() []openai.Tool {
 				},
 			},
 		},
+		{
+			Type: "function",
+			Function: openai.FunctionSpec{
+				Name:        "generate_widget",
+				Description: "Generate a visual widget (chart, table, or card) to display data on the dashboard, when the user explicitly asks for the visualization or when the structured data would be clear shown visually than as a text",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"widget_type": map[string]any{
+							"type":        "string",
+							"enum":        []string{"chart", "table", "card"},
+							"description": "The type of widget to render on the dashboard",
+						},
+						"title": map[string]any{
+							"type":        "string",
+							"description": "Short title describing what this widget shows",
+						},
+						"data": map[string]any{
+							"type":        "string",
+							"description": "JSON-encoded string containing the widget's data, structured according to the widget_type. For 'chart': {\"chartType\": \"bar\"|\"line\", \"labels\": [...], \"values\": [...]}. For 'table': {\"columns\": [...], \"rows\": [[...], ...]}. For 'card': {\"value\": \"...\", \"description\": \"...\"}.",
+						},
+					},
+					"required": []string{"widget_type", "title", "data"},
+				},
+			},
+		},
 	}
 }

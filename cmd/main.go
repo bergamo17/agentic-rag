@@ -82,7 +82,7 @@ func runCLI(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *
 			Content: input,
 		})
 
-		answer, pages, isPartial, err := agent.AgentLoop(openaiClient, webClient, mlClient, messages)
+		answer, pages, widgets, isPartial, err := agent.AgentLoop(openaiClient, webClient, mlClient, messages)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			continue
@@ -98,6 +98,14 @@ func runCLI(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *
 			fmt.Println("\n[Referenced pages]")
 			for _, p := range pages {
 				fmt.Printf("  - %s, page %d (doc: %s)\n", p.Title, p.PageNumber, p.DocumentID)
+			}
+		}
+
+		if len(widgets) > 0 {
+			fmt.Println("\n[Generated widgets]")
+			for _, w := range widgets {
+				fmt.Printf("  - [%s] %s\n", w.WidgetType, w.Title)
+				fmt.Printf("    data: %s\n", w.Data)
 			}
 		}
 

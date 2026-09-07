@@ -11,7 +11,7 @@ import (
 	"github.com/bergamo17/agentic-rag-prototype/internal/websearch"
 )
 
-func executeTool(mlClient *mlservice.Client, webClient *websearch.Client, tc openai.ToolCall) (string, []openai.PageContext, error) {
+func executeTool(mlClient *mlservice.Client, webClient *websearch.Client, tc openai.ToolCall) (string, []openai.PageContext, []openai.Widget, error) {
 	switch tc.Function.Name {
 
 	case "search_documents":
@@ -19,11 +19,11 @@ func executeTool(mlClient *mlservice.Client, webClient *websearch.Client, tc ope
 			Query string `json:"query"`
 		}
 		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-			return "", nil, err
+			return "", nil, nil, err
 		}
 		pages, err := mlClient.Retrieve(args.Query, 3)
 		if err != nil {
-			return "", nil, err
+			return "", nil, nil, err
 		}
 		pageContext := make([]openai.PageContext, len(pages))
 		for i, p := range pages {
@@ -34,19 +34,19 @@ func executeTool(mlClient *mlservice.Client, webClient *websearch.Client, tc ope
 				ImageBase64: p.ImageBase64,
 			}
 		}
-		return fmt.Sprintf("Founded %d relevant pages.", len(pages)), pageContext, nil
+		return fmt.Sprintf("Founded %d relevant pages.", len(pages)), pageContext, nil, nil
 
 	case "web_search":
 		var args struct {
 			Query string `json:"query"`
 		}
 		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-			return "", nil, err
+			return "", nil, nil, err
 		}
 
 		results, err := webClient.Search(args.Query)
 		if err != nil {
-			return "", nil, err
+			return "", nil, nil, err
 		}
 
 		var summary strings.Builder
@@ -55,7 +55,7 @@ func executeTool(mlClient *mlservice.Client, webClient *websearch.Client, tc ope
 			summary.WriteString(fmt.Sprintf("- %s: %s\n  %s\n", r.Title, r.Url, r.Content))
 		}
 
-		return summary.String(), nil, nil
+		return summary.String(), nil, nil, nil
 
 	case "get_page_image":
 		var args struct {
@@ -63,12 +63,12 @@ func executeTool(mlClient *mlservice.Client, webClient *websearch.Client, tc ope
 			PageNumber int    `json:"page_number"`
 		}
 		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-			return "", nil, err
+			return "", nil, nil, err
 		}
 
 		page, err := mlClient.GetPage(args.DocumentID, args.PageNumber)
 		if err != nil {
-			return "", nil, err
+			return "", nil, nil, err
 		}
 
 		pageContext := openai.PageContext{
@@ -78,16 +78,16 @@ func executeTool(mlClient *mlservice.Client, webClient *websearch.Client, tc ope
 			ImageBase64: page.ImageBase64,
 		}
 
-		return fmt.Sprintf("Page %d from %s is retrieved successfully", page.PageNumber, page.Title), []openai.PageContext{pageContext}, nil
+		return fmt.Sprintf("Page %d from %s is retrieved successfully", page.PageNumber, page.Title), []openai.PageContext{pageContext}, nil, nil
 
 	case "list_documents":
 		docs, err := mlClient.ListDocuments()
 		if err != nil {
-			return "", nil, err
+			return "", nil, nil, err
 		}
 
 		if len(docs) == 0 {
-			return "There is not existing documents.", nil, nil
+			return "There is not existing documents.", nil, nil, nil
 		}
 
 		summary := "Document available:\n"
@@ -95,10 +95,29 @@ func executeTool(mlClient *mlservice.Client, webClient *websearch.Client, tc ope
 			summary += fmt.Sprintf("- %s (ID: %s, %d halaman)\n", d.Title, d.DocumentID, d.NumPages)
 		}
 
-		return summary, nil, nil
+		return summary, nil, nil, nil
+
+	case "generate_widget":
+		var args struct {
+			WidgetType string `json:"widget_type"`
+			Title      string `json:"title"`
+			Data       string `json:"data"`
+		}
+
+		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+			return "", nil, nil, err
+		}
+
+		widget := openai.Widget{
+			WidgetType: args.WidgetType,
+			Title:      args.Title,
+			Data:       args.Data,
+		}
+
+		return fmt.Sprintf("Widget '%s' (%s) generated successfully", widget.Title, widget.WidgetType), nil, []openai.Widget{widget}, nil
 
 	default:
-		return "", nil, fmt.Errorf("Unknown tool: %s", tc.Function.Name)
+		return "", nil, nil, fmt.Errorf("Unknown tool: %s", tc.Function.Name)
 	}
 
 }
@@ -108,27 +127,28 @@ func AgentLoop(
 	webClient *websearch.Client,
 	mlClient *mlservice.Client,
 	messages []openai.Message,
-) (string, []openai.PageContext, bool, error) {
+) (string, []openai.PageContext, []openai.Widget, bool, error) {
 	const maxItterations = 5
 	var usedPages []openai.PageContext
+	var usedWidgets []openai.Widget
 
 	for i := 0; i < maxItterations; i++ {
 		log.Printf("Itteration- %d started", i)
 		resp, err := opeaiClient.ChatCompletion(messages, AvailableTools())
 		if err != nil {
-			return "", nil, false, err
+			return "", nil, nil, false, err
 		}
 
 		if len(resp.ToolCall) == 0 {
 			answer, _ := resp.Content.(string)
-			return answer, usedPages, false, nil
+			return answer, usedPages, usedWidgets, false, nil
 		}
 
 		messages = append(messages, resp)
 
 		for _, tc := range resp.ToolCall {
 			log.Printf("Tool called: %s | Arguments: %s", tc.Function.Name, tc.Function.Arguments)
-			result, pages, err := executeTool(mlClient, webClient, tc)
+			result, pages, widget, err := executeTool(mlClient, webClient, tc)
 			if err != nil {
 				result = fmt.Sprintf("Error executing tool: %s", err)
 			}
@@ -136,6 +156,10 @@ func AgentLoop(
 
 			if len(pages) > 0 {
 				usedPages = append(usedPages, pages...)
+			}
+
+			if len(widget) > 0 {
+				usedWidgets = append(usedWidgets, widget...)
 			}
 
 			messages = append(messages, openai.Message{
@@ -154,13 +178,13 @@ func AgentLoop(
 
 	finalResp, err := opeaiClient.ChatCompletion(messages, []openai.Tool{})
 	if err != nil {
-		return "", nil, false, err
+		return "", nil, nil, false, err
 	}
 
 	finalAnswer, ok := finalResp.Content.(string)
 	if !ok {
-		return "Sorry, unable to compile a summary of the answer.", usedPages, false, nil
+		return "Sorry, unable to compile a summary of the answer.", usedPages, usedWidgets, false, nil
 	}
 
-	return finalAnswer, usedPages, true, nil
+	return finalAnswer, usedPages, usedWidgets, true, nil
 }

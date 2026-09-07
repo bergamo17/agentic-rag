@@ -43,6 +43,18 @@ def ensure_collection():
             },
         )
 
+        qdrant.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name="document_id",
+            field_schema="keyword",
+        )
+
+        qdrant.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name="page_number",
+            field_schema="integer",
+        )
+
 ensure_collection()
 os.makedirs("storage/pages", exist_ok=True)
 
@@ -133,15 +145,18 @@ async def do_retrieve(req: RetrieveRequest):
     return {"pages": results}
 
 @app.get("/page")
-async def get_page(document_id: str, page_number: int):
+async def get_page(document_id: str, page_number: int | None = None):
+    conditions = [
+        models.FieldCondition(key="page_number", match=models.MatchValue(value=page_number)),
+    ]
+    if document_id :
+        conditions.append(
+            models.FieldCondition(key="document_id", match=models.MatchValue(value=document_id)),
+        )
+
     scroll_result = qdrant.scroll(
         collection_name=COLLECTION_NAME,
-        scroll_filter=models.Filter(
-            must=[
-                models.FieldCondition(key='document_id', match=models.MatchValue(value=document_id)),
-                models.FieldCondition(key='page_number', match=models.MatchValue(value=page_number)),
-            ]
-        ),
+        scroll_filter=models.Filter(must=conditions),
         limit=1,
     )
     points, _ = scroll_result

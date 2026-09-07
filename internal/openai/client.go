@@ -83,6 +83,12 @@ type PageContext struct {
 	ImageBase64 string
 }
 
+type Widget struct {
+	WidgetType string
+	Title      string
+	Data       string
+}
+
 func (c *Client) ChatCompletion(message []Message, tools []Tool) (Message, error) {
 	reqBody := chatRequest{
 		Model:     modelName,
