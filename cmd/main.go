@@ -12,6 +12,8 @@ import (
 	mlservice "github.com/bergamo17/agentic-rag-prototype/internal/mlservices"
 	"github.com/bergamo17/agentic-rag-prototype/internal/openai"
 	"github.com/bergamo17/agentic-rag-prototype/internal/websearch"
+
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -39,6 +41,13 @@ func main() {
 	h := handlers.New(mlClient, openAIClient, webClient)
 
 	router := gin.Default()
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowMethods:     []string{"POST", "GET", "PUT", "DELETE"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowCredentials: true,
+	}))
+
 	router.POST("/documents", h.EmbedDocument)
 	router.POST("/chat", h.Chat)
 	router.POST("/chat/agent", h.ChatAgent)

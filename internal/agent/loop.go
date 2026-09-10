@@ -130,7 +130,7 @@ func AgentLoop(
 ) (string, []openai.PageContext, []openai.Widget, bool, error) {
 	const maxItterations = 5
 	var usedPages []openai.PageContext
-	var usedWidgets []openai.Widget
+	var usedWidgets = []openai.Widget{}
 
 	for i := 0; i < maxItterations; i++ {
 		log.Printf("Itteration- %d started", i)

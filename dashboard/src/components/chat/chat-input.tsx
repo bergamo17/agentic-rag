@@ -20,14 +20,14 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
     }
 
     return (
-        <form onSubmit={handleSubmit} className="flex gap-2 border-t p-3">
+        <form onSubmit={handleSubmit} className="flex gap-2 border-t border-gray-200 bg-white p-3">
             <input
                 type="text"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 disabled={disabled}
                 placeholder="Tanyakan sesuatu..."
-                className="flex-1 rounded-md border px-3 py-2 text-sm disabled:opacity-50"
+                className="flex-1 rounded-[10px] border border-gray-300 bg-white px-3 py-2 text-sm text-blue-600 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 disabled:opacity-50"
             />
             <button
                 type="submit"
