@@ -89,6 +89,12 @@ type Widget struct {
 	Data       string
 }
 
+type GeneratedDocument struct {
+	Title      string `json:"title"`
+	OutputPath string `json:"output_path"`
+	Theme      string `json:"theme"`
+}
+
 func (c *Client) ChatCompletion(message []Message, tools []Tool) (Message, error) {
 	reqBody := chatRequest{
 		Model:     modelName,

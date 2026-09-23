@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/bergamo17/agentic-rag-prototype/internal/agent"
+	"github.com/bergamo17/agentic-rag-prototype/internal/docbuilder"
 	"github.com/bergamo17/agentic-rag-prototype/internal/handlers"
 	mlservice "github.com/bergamo17/agentic-rag-prototype/internal/mlservices"
 	"github.com/bergamo17/agentic-rag-prototype/internal/openai"
@@ -29,16 +30,27 @@ func main() {
 		// mlServiceURL = "https://zm35wvtq-8001.use2.devtunnels.ms"
 	}
 
+	docPythonPath := os.Getenv("DOC_BUILDER_PYTHON_PATH")
+	if docPythonPath == "" {
+		docPythonPath = "python3"
+	}
+
+	docScriptPath := os.Getenv("DOC_BUILDER_SCRIPT_PATH")
+	if docScriptPath == "" {
+		docScriptPath = "document-services/document_builder.py"
+	}
+
 	mlClient := mlservice.NewClient(mlServiceURL)
 	openAIClient := openai.NewClient()
 	webClient := websearch.NewClient(os.Getenv("TAVILY_API_KEY"))
+	docClient := docbuilder.NewClient(docPythonPath, docScriptPath)
 
 	if len(os.Args) > 1 && os.Args[1] == "cli" {
-		runCLI(mlClient, openAIClient, webClient)
+		runCLI(mlClient, openAIClient, webClient, docClient)
 		return
 	}
 
-	h := handlers.New(mlClient, openAIClient, webClient)
+	h := handlers.New(mlClient, openAIClient, webClient, docClient)
 
 	router := gin.Default()
 	router.Use(cors.New(cors.Config{
@@ -60,7 +72,7 @@ func main() {
 	router.Run(":" + port)
 }
 
-func runCLI(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *websearch.Client) {
+func runCLI(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *websearch.Client, docClient *docbuilder.Client) {
 	fmt.Println("===Agentic AI CLI====")
 	fmt.Println("Type your question, or 'exit' for quitting.")
 
@@ -91,7 +103,7 @@ func runCLI(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *
 			Content: input,
 		})
 
-		answer, pages, widgets, isPartial, err := agent.AgentLoop(openaiClient, webClient, mlClient, messages)
+		answer, pages, widgets, docs, isPartial, err := agent.AgentLoop(openaiClient, webClient, mlClient, docClient, messages)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			continue
@@ -115,6 +127,14 @@ func runCLI(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *
 			for _, w := range widgets {
 				fmt.Printf("  - [%s] %s\n", w.WidgetType, w.Title)
 				fmt.Printf("    data: %s\n", w.Data)
+			}
+		}
+
+		if len(docs) > 0 {
+			fmt.Println("\n[Generated docs]")
+			for _, d := range docs {
+				fmt.Printf("  - %s (theme: %s)\n", d.Title, d.Theme)
+				fmt.Printf("    saved to: %s\n", d.OutputPath)
 			}
 		}
 

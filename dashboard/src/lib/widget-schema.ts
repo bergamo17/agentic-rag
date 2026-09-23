@@ -15,9 +15,9 @@ export type CardData = {
 };
 
 export type Widget = 
-    | { widget_type: "chart"; title: string; data: ChartData }
-    | { widget_type: "table"; title: string; data:TableData }
-    | { widget_type: "card"; title: string; data:CardData }
+    | { id: string, widget_type: "chart"; title: string; data: ChartData }
+    | { id: string, widget_type: "table"; title: string; data:TableData }
+    | { id: string, widget_type: "card"; title: string; data:CardData }
 
 function isStringArray(v: unknown): v is string[] {
     return Array.isArray(v) && v.every((item) => typeof item === "string");
@@ -28,6 +28,7 @@ function isNumberArray(v: unknown): v is number[] {
 }
 
 export function parseWidget(raw: {
+    id: string;
     widget_type: string;
     title: string;
     data: string;
@@ -46,7 +47,7 @@ export function parseWidget(raw: {
                 ) {
                     return null;
                 }
-                return { widget_type: "chart", title: raw.title, data: parsedData as ChartData };
+                return { id: raw.id, widget_type: "chart", title: raw.title, data: parsedData as ChartData };
 
             case "table":
                 if (
@@ -58,7 +59,7 @@ export function parseWidget(raw: {
                 ) {
                     return null;
                 }
-                return { widget_type: "table", title: raw.title, data: parsedData as TableData };
+                return { id: raw.id, widget_type: "table", title: raw.title, data: parsedData as TableData };
 
             case "card":
                 if (
@@ -67,7 +68,7 @@ export function parseWidget(raw: {
                 ) {
                     return null;
                 }
-                return { widget_type: "card", title: raw.title, data: parsedData as CardData };
+                return { id: raw.id, widget_type: "card", title: raw.title, data: parsedData as CardData };
 
             default:
                 return null;

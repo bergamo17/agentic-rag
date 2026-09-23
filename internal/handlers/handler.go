@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/bergamo17/agentic-rag-prototype/internal/agent"
+	"github.com/bergamo17/agentic-rag-prototype/internal/docbuilder"
 	mlservice "github.com/bergamo17/agentic-rag-prototype/internal/mlservices"
 	"github.com/bergamo17/agentic-rag-prototype/internal/openai"
 	"github.com/bergamo17/agentic-rag-prototype/internal/websearch"
@@ -16,13 +17,15 @@ type Handlers struct {
 	ML     *mlservice.Client
 	OpenAI *openai.Client
 	Web    *websearch.Client
+	Doc    *docbuilder.Client
 }
 
-func New(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *websearch.Client) *Handlers {
+func New(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *websearch.Client, docClient *docbuilder.Client) *Handlers {
 	return &Handlers{
 		ML:     mlClient,
 		OpenAI: openaiClient,
 		Web:    webClient,
+		Doc:    docClient,
 	}
 }
 
@@ -129,7 +132,7 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		},
 	}
 
-	answer, pages, widgets, isPartial, err := agent.AgentLoop(h.OpenAI, h.Web, h.ML, messages)
+	answer, pages, widgets, docs, isPartial, err := agent.AgentLoop(h.OpenAI, h.Web, h.ML, h.Doc, messages)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
@@ -154,10 +157,20 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		}
 	}
 
+	docMeta := make([]gin.H, len(docs))
+	for i, d := range docs {
+		docMeta[i] = gin.H{
+			"title":       d.Title,
+			"theme":       d.Theme,
+			"output_path": d.OutputPath,
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"answer":     answer,
 		"pages":      pageMeta,
 		"widgets":    widgets,
+		"documents":  docMeta,
 		"is_partial": isPartial,
 	})
 }
