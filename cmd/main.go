@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -40,17 +41,28 @@ func main() {
 		docScriptPath = "document-services/document_builder.py"
 	}
 
+	sandboxInputPath := os.Getenv("SANBOX_INPUT_DIR")
+	if sandboxInputPath == "" {
+		sandboxInputPath = "sandbox/input"
+	}
+
+	sandboxOutputPath := os.Getenv("SANDBOX_OUTPUT_DIR")
+	if sandboxOutputPath == "" {
+		sandboxOutputPath = "sandbox/output"
+	}
+
 	mlClient := mlservice.NewClient(mlServiceURL)
 	openAIClient := openai.NewClient()
 	webClient := websearch.NewClient(os.Getenv("TAVILY_API_KEY"))
 	docClient := docbuilder.NewClient(docPythonPath, docScriptPath)
+	sandboxClient := docbuilder.NewSandboxClient(sandboxInputPath, sandboxOutputPath)
 
 	if len(os.Args) > 1 && os.Args[1] == "cli" {
-		runCLI(mlClient, openAIClient, webClient, docClient)
+		runCLI(mlClient, openAIClient, webClient, docClient, sandboxClient)
 		return
 	}
 
-	h := handlers.New(mlClient, openAIClient, webClient, docClient)
+	h := handlers.New(mlClient, openAIClient, webClient, docClient, sandboxClient)
 
 	router := gin.Default()
 	router.Use(cors.New(cors.Config{
@@ -72,9 +84,11 @@ func main() {
 	router.Run(":" + port)
 }
 
-func runCLI(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *websearch.Client, docClient *docbuilder.Client) {
+func runCLI(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *websearch.Client, docClient *docbuilder.Client, sanboxClient *docbuilder.SandboxClient) {
 	fmt.Println("===Agentic AI CLI====")
 	fmt.Println("Type your question, or 'exit' for quitting.")
+
+	ctx := context.Background()
 
 	messages := []openai.Message{
 		{
@@ -103,7 +117,7 @@ func runCLI(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *
 			Content: input,
 		})
 
-		answer, pages, widgets, docs, isPartial, err := agent.AgentLoop(openaiClient, webClient, mlClient, docClient, messages)
+		answer, pages, widgets, docs, isPartial, err := agent.AgentLoop(openaiClient, webClient, mlClient, docClient, sanboxClient, ctx, messages)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			continue

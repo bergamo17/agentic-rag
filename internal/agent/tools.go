@@ -183,6 +183,10 @@ func executePythonSchema() openai.Tool {
 						"type":        "string",
 						"description": "Complete python script using the python-docx library. Must import docx, build the Document object, and call doc.save('/workspace/output/output.docx').",
 					},
+					"title": map[string]any{
+						"type":        "string",
+						"description": "The generated document's title from the execute_python tool",
+					},
 				},
 				"required": []string{"code"},
 			},

@@ -18,14 +18,16 @@ type Handlers struct {
 	OpenAI *openai.Client
 	Web    *websearch.Client
 	Doc    *docbuilder.Client
+	Sand   *docbuilder.SandboxClient
 }
 
-func New(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *websearch.Client, docClient *docbuilder.Client) *Handlers {
+func New(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *websearch.Client, docClient *docbuilder.Client, sandboxClient *docbuilder.SandboxClient) *Handlers {
 	return &Handlers{
 		ML:     mlClient,
 		OpenAI: openaiClient,
 		Web:    webClient,
 		Doc:    docClient,
+		Sand:   sandboxClient,
 	}
 }
 
@@ -121,6 +123,8 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		return
 	}
 
+	ctx := c.Request.Context()
+
 	messages := []openai.Message{
 		{
 			Role:    "system",
@@ -132,7 +136,7 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		},
 	}
 
-	answer, pages, widgets, docs, isPartial, err := agent.AgentLoop(h.OpenAI, h.Web, h.ML, h.Doc, messages)
+	answer, pages, widgets, docs, isPartial, err := agent.AgentLoop(h.OpenAI, h.Web, h.ML, h.Doc, h.Sand, ctx, messages)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return

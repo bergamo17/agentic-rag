@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,6 +17,8 @@ import (
 func executeTool(mlClient *mlservice.Client,
 	webClient *websearch.Client,
 	docClient *docbuilder.Client,
+	sandboxClient *docbuilder.SandboxClient,
+	ctx context.Context,
 	tc openai.ToolCall) (string, []openai.PageContext, []openai.Widget, []openai.GeneratedDocument, error) {
 	switch tc.Function.Name {
 
@@ -154,6 +157,29 @@ func executeTool(mlClient *mlservice.Client,
 
 		return fmt.Sprintf("Document '%s' created successfully", args.Title), nil, nil, []openai.GeneratedDocument{doc}, nil
 
+	case "execute_python":
+		var args struct {
+			Code  string `json:"code"`
+			Title string `json:"title"`
+		}
+
+		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+			return "", nil, nil, nil, err
+		}
+
+		result, err := sandboxClient.RunCode(ctx, args.Code, "output.docx")
+		if err != nil {
+			return "", nil, nil, nil, fmt.Errorf("Failed to execute the code: %w", err)
+		}
+
+		doc := openai.GeneratedDocument{
+			Title:      args.Title,
+			OutputPath: result.OutputPath,
+			Theme:      "custom",
+		}
+
+		return fmt.Sprintf("Document '%s' created successfully", args.Title), nil, nil, []openai.GeneratedDocument{doc}, nil
+
 	default:
 		return "", nil, nil, nil, fmt.Errorf("Unknown tool: %s", tc.Function.Name)
 	}
@@ -165,6 +191,8 @@ func AgentLoop(
 	webClient *websearch.Client,
 	mlClient *mlservice.Client,
 	docClient *docbuilder.Client,
+	sandboxClient *docbuilder.SandboxClient,
+	ctx context.Context,
 	messages []openai.Message,
 ) (string, []openai.PageContext, []openai.Widget, []openai.GeneratedDocument, bool, error) {
 	const maxItterations = 5
@@ -191,7 +219,7 @@ func AgentLoop(
 
 		for _, tc := range resp.ToolCall {
 			log.Printf("Tool called: %s | Arguments: %s", tc.Function.Name, tc.Function.Arguments)
-			result, pages, widget, docs, err := executeTool(mlClient, webClient, docClient, tc)
+			result, pages, widget, docs, err := executeTool(mlClient, webClient, docClient, sandboxClient, ctx, tc)
 			if err != nil {
 				result = fmt.Sprintf("Error executing tool: %s", err)
 			}
