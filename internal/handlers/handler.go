@@ -3,6 +3,8 @@ package handlers
 import (
 	"io"
 	"net/http"
+	"path/filepath"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -177,4 +179,43 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		"documents":  docMeta,
 		"is_partial": isPartial,
 	})
+}
+
+var isAllowedPath = []string{
+	"sandbox/output/",
+	"generated-docs/",
+}
+
+func (h *Handlers) DownloadDocument(c *gin.Context) {
+	path := c.Query("path")
+	if path == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Path is required"})
+		return
+	}
+
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid path"})
+		return
+	}
+
+	if !isPathAllowed(absPath) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		return
+	}
+
+	c.FileAttachment(absPath, filepath.Base(absPath))
+}
+
+func isPathAllowed(absPath string) bool {
+	for _, dir := range isAllowedPath {
+		absDir, err := filepath.Abs(dir)
+		if err != nil {
+			continue
+		}
+		if strings.HasPrefix(absPath, absDir) {
+			return true
+		}
+	}
+	return false
 }

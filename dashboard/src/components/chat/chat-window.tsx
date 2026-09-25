@@ -6,11 +6,18 @@ import { sendChatMessage } from "@/lib/api-client";
 import { MessageBubble} from "./message-bubble";
 import { ChatInput } from "./chat-input";
 
+type GeneratedDocument = {
+    title: string;
+    theme: string;
+    outputPath: string;
+}
+
 type Message = {
     id: string;
     role: "user" | "agent";
     content: string;
     isPartial?: boolean;
+    documents?: GeneratedDocument[];
 }
 
 export function ChatWindow() {
@@ -38,6 +45,7 @@ export function ChatWindow() {
                 role: "agent",
                 content: result.answer,
                 isPartial: result.isPartial,
+                documents: result.documents,
             };
             setMessages((prev) => [...prev, agentMessage]);
 

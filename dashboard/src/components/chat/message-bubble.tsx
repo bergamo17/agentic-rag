@@ -1,8 +1,18 @@
+import { Widget } from "@/lib/widget-schema";
+
+type GeneratedDocument = {
+    title: string;
+    theme: string;
+    outputPath: string;
+}
+
 type Message = {
     id: string;
     role: "user" | "agent";
     content: string;
     isPartial?: boolean;
+    widgets?: Widget[];
+    documents?: GeneratedDocument[];
 };
 
 type MessageBubbleProps = {
@@ -22,6 +32,26 @@ export function MessageBubble({ message }: MessageBubbleProps){
                 }`}
             >
                 <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+
+                {message.documents?.map((doc, i) => (
+                    <div
+                        key={i}
+                        className="mt-2 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2"
+                    >
+                        <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-gray-900">{doc.title}</p>
+                            <p className="text-xs text-gray-500">{doc.theme}</p>
+                        </div>
+                            <a
+                            href={`${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/download?path=${encodeURIComponent(doc.outputPath)}`}
+                            download
+                            className="ml-3 shrink-0 text-xs font-medium text-indigo-600 underline"
+                        >
+                            Download
+                        </a>
+                    </div>
+                ))}
+                
                 {message.isPartial && (
                 <span className="mt-1 inline-block text-xs text-amber-600">
                     ⚠ Jawaban belum lengkap

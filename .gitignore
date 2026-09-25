@@ -16,8 +16,11 @@ generated-docs/
 document-services/__pycache__
 document-services/_generated
 
+
 *.json
 
 venv/
 
 *.docx
+
+sandbox/

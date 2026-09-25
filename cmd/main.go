@@ -75,6 +75,7 @@ func main() {
 	router.POST("/documents", h.EmbedDocument)
 	router.POST("/chat", h.Chat)
 	router.POST("/chat/agent", h.ChatAgent)
+	router.GET("/documents/download", h.DownloadDocument)
 
 	port := os.Getenv("PORT")
 	if port == "" {
