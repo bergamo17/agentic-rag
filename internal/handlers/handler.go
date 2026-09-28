@@ -23,6 +23,16 @@ type Handlers struct {
 	Sand   *docbuilder.SandboxClient
 }
 
+const agentSystemPrompt = `Kamu adalah asisten AI yang membantu menjawab pertanyaan menggunakan dokumen yang tersedia, pencarian web, dan alat visualisasi.
+
+ATURAN PENTING setelah memanggil generate_widget, create_docx, atau execute_python:
+- JANGAN PERNAH menyertakan markdown image (![...](...)), link file, atau path file apapun di jawaban teks kamu, walau kamu tahu nama filenya.
+- Hasil widget/dokumen dirender otomatis dan terpisah oleh antarmuka -- kamu tidak perlu dan tidak boleh mereferensikannya dengan syntax markdown apapun.
+- Cukup rujuk secara natural, misalnya "Berikut tabelnya:" atau "Saya sudah buatkan grafiknya." tanpa embed apapun.
+- Jangan pernah mengarang nama file atau path yang tidak muncul di tool result.
+
+Gunakan search_documents untuk pertanyaan yang mungkin terjawab dari dokumen yang diunggah, web_search untuk informasi umum/terkini, dan generate_widget saat data akan lebih jelas ditampilkan secara visual.`
+
 func New(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *websearch.Client, docClient *docbuilder.Client, sandboxClient *docbuilder.SandboxClient) *Handlers {
 	return &Handlers{
 		ML:     mlClient,
@@ -130,7 +140,7 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 	messages := []openai.Message{
 		{
 			Role:    "system",
-			Content: "You are a helpful assistant that can search documents and the web to answer questions.",
+			Content: agentSystemPrompt,
 		},
 		{
 			Role:    "user",
@@ -154,14 +164,14 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		}
 	}
 
-	widgetMeta := make([]gin.H, len(widgets))
-	for i, w := range widgets {
-		widgetMeta[i] = gin.H{
-			"widget_type": w.WidgetType,
-			"title":       w.Title,
-			"data":        w.Data,
-		}
-	}
+	// widgetMeta := make([]gin.H, len(widgets))
+	// for i, w := range widgets {
+	// 	widgetMeta[i] = gin.H{
+	// 		"widget_type": w.WidgetType,
+	// 		"title":       w.Title,
+	// 		"data":        w.Data,
+	// 	}
+	// }
 
 	docMeta := make([]gin.H, len(docs))
 	for i, d := range docs {

@@ -84,9 +84,10 @@ type PageContext struct {
 }
 
 type Widget struct {
-	WidgetType string
-	Title      string
-	Data       string
+	Id         string `json:"id"`
+	WidgetType string `json:"widget_type"`
+	Title      string `json:"title"`
+	Data       string `json:"data"`
 }
 
 type GeneratedDocument struct {

@@ -117,6 +117,7 @@ func executeTool(mlClient *mlservice.Client,
 		}
 
 		widget := openai.Widget{
+			Id:         uuid.New().String(),
 			WidgetType: args.WidgetType,
 			Title:      args.Title,
 			Data:       args.Data,
