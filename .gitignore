@@ -26,3 +26,5 @@ venv/
 sandbox/
 
 .DS_Store
+
+plan/

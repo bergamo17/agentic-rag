@@ -31,6 +31,15 @@ func (q *Queries) CreateConversation(ctx context.Context, title string) (Convers
 	return i, err
 }
 
+const deleteConversation = `-- name: DeleteConversation :exec
+DELETE FROM conversations WHERE id = $1
+`
+
+func (q *Queries) DeleteConversation(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteConversation, id)
+	return err
+}
+
 const getConversation = `-- name: GetConversation :one
 SELECT id, title, created_at, updated_at FROM conversations
 WHERE id = $1 LIMIT 1
@@ -88,6 +97,30 @@ RETURNING id, title, created_at, updated_at
 
 func (q *Queries) UpdateConversationTime(ctx context.Context, id pgtype.UUID) (Conversation, error) {
 	row := q.db.QueryRow(ctx, updateConversationTime, id)
+	var i Conversation
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateConversationTitle = `-- name: UpdateConversationTitle :one
+UPDATE conversations
+SET title = $2, updated_at = now()
+WHERE id = $1
+RETURNING id, title, created_at, updated_at
+`
+
+type UpdateConversationTitleParams struct {
+	ID    pgtype.UUID `json:"id"`
+	Title string      `json:"title"`
+}
+
+func (q *Queries) UpdateConversationTitle(ctx context.Context, arg UpdateConversationTitleParams) (Conversation, error) {
+	row := q.db.QueryRow(ctx, updateConversationTitle, arg.ID, arg.Title)
 	var i Conversation
 	err := row.Scan(
 		&i.ID,

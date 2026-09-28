@@ -90,3 +90,46 @@ func (q *Queries) ListMessageByConversationID(ctx context.Context, conversationI
 	}
 	return items, nil
 }
+
+const listRecentMessages = `-- name: ListRecentMessages :many
+SELECT id, conversation_id, role, content, widgets, documents, pages, is_partial, created_at
+FROM messages
+WHERE conversation_id = $1
+ORDER BY created_at DESC
+LIMIT $2
+`
+
+type ListRecentMessagesParams struct {
+	ConversationID pgtype.UUID `json:"conversation_id"`
+	Limit          int32       `json:"limit"`
+}
+
+func (q *Queries) ListRecentMessages(ctx context.Context, arg ListRecentMessagesParams) ([]Message, error) {
+	rows, err := q.db.Query(ctx, listRecentMessages, arg.ConversationID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Message{}
+	for rows.Next() {
+		var i Message
+		if err := rows.Scan(
+			&i.ID,
+			&i.ConversationID,
+			&i.Role,
+			&i.Content,
+			&i.Widgets,
+			&i.Documents,
+			&i.Pages,
+			&i.IsPartial,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

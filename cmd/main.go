@@ -8,15 +8,16 @@ import (
 	"os"
 	"strings"
 
+	db "github.com/bergamo17/agentic-rag-prototype/db/sqlc"
 	"github.com/bergamo17/agentic-rag-prototype/internal/agent"
 	"github.com/bergamo17/agentic-rag-prototype/internal/docbuilder"
 	"github.com/bergamo17/agentic-rag-prototype/internal/handlers"
 	mlservice "github.com/bergamo17/agentic-rag-prototype/internal/mlservices"
 	"github.com/bergamo17/agentic-rag-prototype/internal/openai"
+	"github.com/bergamo17/agentic-rag-prototype/internal/server"
 	"github.com/bergamo17/agentic-rag-prototype/internal/websearch"
+	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
 
@@ -62,27 +63,9 @@ func main() {
 		return
 	}
 
-	h := handlers.New(mlClient, openAIClient, webClient, docClient, sandboxClient)
-
-	router := gin.Default()
-	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000"},
-		AllowMethods:     []string{"POST", "GET", "PUT", "DELETE"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
-		AllowCredentials: true,
-	}))
-
-	router.POST("/documents", h.EmbedDocument)
-	router.POST("/chat", h.Chat)
-	router.POST("/chat/agent", h.ChatAgent)
-	router.GET("/documents/download", h.DownloadDocument)
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	if err := runGinServer(mlClient, openAIClient, webClient, docClient, sandboxClient); err != nil {
+		log.Fatal(err)
 	}
-	log.Printf("Agentic RAG API (Go) run in: %s", port)
-	router.Run(":" + port)
 }
 
 func runCLI(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *websearch.Client, docClient *docbuilder.Client, sanboxClient *docbuilder.SandboxClient) {
@@ -162,4 +145,50 @@ func runCLI(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *
 	if err := scanner.Err(); err != nil {
 		log.Printf("scanner error: %v", err)
 	}
+}
+
+func newDBPool(ctx context.Context) (*pgxpool.Pool, error) {
+	dsn := os.Getenv("DB_URL")
+	if dsn == "" {
+		return nil, fmt.Errorf("DB_URL is not set")
+	}
+
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		return nil, fmt.Errorf("Cannot create db pool: %w", err)
+	}
+
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("ping db: %w", err)
+	}
+	return pool, nil
+}
+
+func runGinServer(
+	mlClient *mlservice.Client,
+	openaiClient *openai.Client,
+	webClient *websearch.Client,
+	docClient *docbuilder.Client,
+	sandboxClient *docbuilder.SandboxClient,
+) error {
+	pool, err := newDBPool(context.Background())
+	if err != nil {
+		return err
+	}
+
+	defer pool.Close()
+
+	queries := db.New(pool)
+
+	h := handlers.New(mlClient, openaiClient, webClient, docClient, sandboxClient, queries)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	srv := server.New(h, []string{"http://localhost:3000"})
+	log.Printf("Agentic AI run in: %s", port)
+	return srv.Start(":" + port)
 }

@@ -12,11 +12,14 @@ import (
 
 type Querier interface {
 	CreateConversation(ctx context.Context, title string) (Conversation, error)
+	DeleteConversation(ctx context.Context, id pgtype.UUID) error
 	GetConversation(ctx context.Context, id pgtype.UUID) (Conversation, error)
 	InsertMessage(ctx context.Context, arg InsertMessageParams) (Message, error)
 	ListConversations(ctx context.Context) ([]Conversation, error)
 	ListMessageByConversationID(ctx context.Context, conversationID pgtype.UUID) ([]Message, error)
+	ListRecentMessages(ctx context.Context, arg ListRecentMessagesParams) ([]Message, error)
 	UpdateConversationTime(ctx context.Context, id pgtype.UUID) (Conversation, error)
+	UpdateConversationTitle(ctx context.Context, arg UpdateConversationTitleParams) (Conversation, error)
 }
 
 var _ Querier = (*Queries)(nil)

@@ -1,18 +1,24 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgtype"
 
+	db "github.com/bergamo17/agentic-rag-prototype/db/sqlc"
 	"github.com/bergamo17/agentic-rag-prototype/internal/agent"
 	"github.com/bergamo17/agentic-rag-prototype/internal/docbuilder"
 	mlservice "github.com/bergamo17/agentic-rag-prototype/internal/mlservices"
 	"github.com/bergamo17/agentic-rag-prototype/internal/openai"
 	"github.com/bergamo17/agentic-rag-prototype/internal/websearch"
+	"github.com/google/uuid"
 )
 
 type Handlers struct {
@@ -21,7 +27,19 @@ type Handlers struct {
 	Web    *websearch.Client
 	Doc    *docbuilder.Client
 	Sand   *docbuilder.SandboxClient
+	Q      db.Querier
 }
+
+type pageRef struct {
+	DocumentID string `json:"document_id"`
+	Title      string `json:"title"`
+	PageNumber int    `json:"page_number"`
+}
+
+const (
+	historyLimit  = 20
+	maxTitleRunes = 50
+)
 
 const agentSystemPrompt = `Kamu adalah asisten AI yang membantu menjawab pertanyaan menggunakan dokumen yang tersedia, pencarian web, dan alat visualisasi.
 
@@ -33,13 +51,14 @@ ATURAN PENTING setelah memanggil generate_widget, create_docx, atau execute_pyth
 
 Gunakan search_documents untuk pertanyaan yang mungkin terjawab dari dokumen yang diunggah, web_search untuk informasi umum/terkini, dan generate_widget saat data akan lebih jelas ditampilkan secara visual.`
 
-func New(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *websearch.Client, docClient *docbuilder.Client, sandboxClient *docbuilder.SandboxClient) *Handlers {
+func New(mlClient *mlservice.Client, openaiClient *openai.Client, webClient *websearch.Client, docClient *docbuilder.Client, sandboxClient *docbuilder.SandboxClient, queries db.Querier) *Handlers {
 	return &Handlers{
 		ML:     mlClient,
 		OpenAI: openaiClient,
 		Web:    webClient,
 		Doc:    docClient,
 		Sand:   sandboxClient,
+		Q:      queries,
 	}
 }
 
@@ -74,8 +93,9 @@ func (h *Handlers) EmbedDocument(c *gin.Context) {
 }
 
 type ChatRequest struct {
-	Query string `json:"query"`
-	K     int    `json:"k"`
+	Query          string `json:"query"`
+	K              int    `json:"k"`
+	ConversationID string `json:"conversation_id"`
 }
 
 func (h *Handlers) Chat(c *gin.Context) {
@@ -127,6 +147,41 @@ func (h *Handlers) Chat(c *gin.Context) {
 	})
 }
 
+func makeTitle(q string) string {
+	q = strings.Join(strings.Fields(q), " ")
+	r := []rune(q)
+	if len(r) > maxTitleRunes {
+		return string(r[:maxTitleRunes]) + "…"
+	}
+	return q
+}
+
+func parseUUID(s string) (pgtype.UUID, error) {
+	id, err := uuid.Parse(s)
+	if err != nil {
+		return pgtype.UUID{}, err
+	}
+	return pgtype.UUID{Bytes: id, Valid: true}, nil
+}
+
+func toJSONB(v any, n int) []byte {
+	if n == 0 {
+		return nil
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
+func uuidString(u pgtype.UUID) string {
+	if !u.Valid {
+		return ""
+	}
+	return uuid.UUID(u.Bytes).String()
+}
+
 func (h *Handlers) ChatAgent(c *gin.Context) {
 	var req ChatRequest
 
@@ -135,26 +190,71 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
+	var conv db.Conversation
 
-	messages := []openai.Message{
-		{
-			Role:    "system",
-			Content: agentSystemPrompt,
-		},
-		{
-			Role:    "user",
-			Content: req.Query,
-		},
+	if req.ConversationID == "" {
+		conversation, err := h.Q.CreateConversation(c, makeTitle(req.Query))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create conversation."})
+			return
+		}
+		conv = conversation
+	} else {
+		convId, err := parseUUID(req.ConversationID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid conversation id."})
+			return
+		}
+
+		existing, err := h.Q.GetConversation(c, convId)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get chat history."})
+			return
+		}
+
+		conv = existing
 	}
 
-	answer, pages, widgets, docs, isPartial, err := agent.AgentLoop(h.OpenAI, h.Web, h.ML, h.Doc, h.Sand, ctx, messages)
+	usrMessage := db.InsertMessageParams{
+		ConversationID: conv.ID,
+		Role:           "user",
+		Content:        req.Query,
+	}
+
+	userMessage, err := h.Q.InsertMessage(c, usrMessage)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save the message/chat."})
+		return
+	}
+
+	listMessage := db.ListRecentMessagesParams{
+		ConversationID: conv.ID,
+		Limit:          20,
+	}
+
+	recentMessages, err := h.Q.ListRecentMessages(c, listMessage)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get the chat history on this conversation."})
+		return
+	}
+
+	messages := make([]openai.Message, 0, len(recentMessages)+1)
+	messages = append(messages, openai.Message{Role: "system", Content: agentSystemPrompt})
+	for i := len(recentMessages) - 1; i >= 0; i-- {
+		messages = append(messages, openai.Message{
+			Role:    recentMessages[i].Role,
+			Content: recentMessages[i].Content,
+		})
+	}
+
+	answer, pages, widgets, docs, isPartial, err := agent.AgentLoop(h.OpenAI, h.Web, h.ML, h.Doc, h.Sand, c, messages)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
 
 	pageMeta := make([]gin.H, len(pages))
+	pageRefs := make([]pageRef, len(pages))
 	for i, p := range pages {
 		pageMeta[i] = gin.H{
 			"document_id": p.DocumentID,
@@ -162,6 +262,7 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 			"page_number": p.PageNumber,
 			"page_image":  p.ImageBase64,
 		}
+		pageRefs[i] = pageRef{DocumentID: p.DocumentID, Title: p.Title, PageNumber: p.PageNumber}
 	}
 
 	// widgetMeta := make([]gin.H, len(widgets))
@@ -182,13 +283,38 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"answer":     answer,
-		"pages":      pageMeta,
-		"widgets":    widgets,
-		"documents":  docMeta,
-		"is_partial": isPartial,
+	saveContext := context.WithoutCancel(c)
+
+	assistantMessage, err := h.Q.InsertMessage(saveContext, db.InsertMessageParams{
+		ConversationID: conv.ID,
+		Role:           "assistant",
+		Content:        answer,
+		Widgets:        toJSONB(widgets, len(widgets)),
+		Documents:      toJSONB(docMeta, len(docMeta)),
+		Pages:          toJSONB(pageRefs, len(pageRefs)),
+		IsPartial:      isPartial,
 	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save the AI answer."})
+		return
+	}
+
+	if _, err := h.Q.UpdateConversationTime(saveContext, conv.ID); err != nil {
+		log.Printf("failed to update conversation time: %v", err)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"conversation_id": uuidString(conv.ID),
+		"title":           conv.Title,
+		"user_message_id": uuidString(userMessage.ID),
+		"message_id":      uuidString(assistantMessage.ID),
+		"answer":          answer,
+		"pages":           pageMeta,
+		"widgets":         widgets,
+		"documents":       docMeta,
+		"is_partial":      isPartial,
+	})
+
 }
 
 var isAllowedPath = []string{

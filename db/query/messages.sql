@@ -10,3 +10,10 @@ SELECT *
 FROM messages
 WHERE conversation_id = $1
 ORDER BY created_at ASC;
+
+-- name: ListRecentMessages :many
+SELECT *
+FROM messages
+WHERE conversation_id = $1
+ORDER BY created_at DESC
+LIMIT $2;
