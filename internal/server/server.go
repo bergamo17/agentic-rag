@@ -34,6 +34,10 @@ func (s *Server) registerRoutes() {
 	s.router.POST("/chat", s.h.Chat)
 	s.router.POST("/chat/agent", s.h.ChatAgent)
 	s.router.GET("/documents/download", s.h.DownloadDocument)
+	s.router.GET("/conversations", s.h.ListConversations)
+	s.router.GET("/conversations/:id/messages", s.h.GetConversationMessages)
+	s.router.PUT("/conversations", s.h.RenameConversation)
+	s.router.DELETE("/conversations", s.h.DeleteConversation)
 }
 
 func (s *Server) Start(address string) error {

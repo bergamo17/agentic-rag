@@ -7,12 +7,47 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/bergamo17/agentic-rag-prototype/util"
 )
 
-const (
-	apiURL    = "https://api.openai.com/v1/chat/completions"
-	modelName = "gpt-4o"
+var (
+	provider  = "openai"
+	apiURL    = defaultURL("openai")
+	modelName = defaultModel("openai")
+	maxTokens = 4096
 )
+
+func loadConfig() {
+	provider = strings.ToLower(util.Getenv("LLM_PROVIDER", "openai"))
+	apiURL = util.Getenv("LLM_API_URL", defaultURL(provider))
+	modelName = util.Getenv("MODEL_NAME", defaultModel(provider))
+	maxTokens = envInt("MAX_TOKENS", 4096)
+}
+
+func defaultURL(p string) string {
+	if p == "anthropic" {
+		return "https://api.anthropic.com/v1/messages"
+	}
+	return "https://api.openai.com/v1/chat/completions"
+}
+
+func defaultModel(p string) string {
+	if p == "anthropic" {
+		return "claude-sonnet-5-5"
+	}
+	return "gpt-4o"
+}
+
+func envInt(key string, fallback int) int {
+	if n, err := strconv.Atoi(os.Getenv(key)); err == nil && n > 0 {
+		return n
+	}
+	return fallback
+}
 
 type Client struct {
 	APIKey     string
@@ -20,9 +55,20 @@ type Client struct {
 }
 
 func NewClient() *Client {
+	loadConfig()
+
+	var key string
+	if provider == "anthropic" {
+		key = os.Getenv("ANTHROPIC_API_KEY")
+	} else {
+		key = os.Getenv("OPENAI_API_KEY")
+	}
+	if key == "" {
+		key = os.Getenv("LLM_API_KEY")
+	}
 	return &Client{
-		APIKey:     os.Getenv("OPENAI_API_KEY"),
-		HTTPClient: &http.Client{},
+		APIKey:     key,
+		HTTPClient: &http.Client{Timeout: 120 * time.Second},
 	}
 }
 
@@ -97,6 +143,15 @@ type GeneratedDocument struct {
 }
 
 func (c *Client) ChatCompletion(message []Message, tools []Tool) (Message, error) {
+	if provider == "anthropic" {
+		return c.chatAnthropic(message, tools)
+	}
+	return c.chatOpenAi(message, tools)
+}
+
+const systemPrompt = `You are an expert professional PDF analyst who gives rigorous in-depth answers. When relevant, mention which page number supports your claims.`
+
+func (c *Client) chatOpenAi(message []Message, tools []Tool) (Message, error) {
 	reqBody := chatRequest{
 		Model:     modelName,
 		Messages:  message,
@@ -141,10 +196,8 @@ func (c *Client) ChatCompletion(message []Message, tools []Tool) (Message, error
 	return result.Choices[0].Message, nil
 }
 
-const systemPrompt = `You are an expert professional PDF analyst who gives rigorous in-depth answers. When relevant, mention which page number supports your claims.`
-
 func (c *Client) QueryVLM(query string, pages []PageContext) (string, error) {
-	content := make([]contentBlock, 0, len(pages)+1)
+	content := make([]contentBlock, 0, len(pages)*2+1)
 	for _, p := range pages {
 		content = append(content, contentBlock{
 			Type: "text",
@@ -157,47 +210,17 @@ func (c *Client) QueryVLM(query string, pages []PageContext) (string, error) {
 	}
 	content = append(content, contentBlock{Type: "text", Text: query})
 
-	reqBody := chatRequest{
-		Model: modelName,
-		Messages: []Message{
-			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: content},
-		},
-		MaxTokens: 1000,
-	}
-
-	payload, err := json.Marshal(reqBody)
+	reply, err := c.ChatCompletion([]Message{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: content},
+	}, nil)
 	if err != nil {
 		return "", err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, apiURL, bytes.NewReader((payload)))
-	if err != nil {
-		return "", err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.APIKey)
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("OpenAI API error (%d): %s", resp.StatusCode, string(body))
-	}
-
-	var result chatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("response kosong dari OpenAI API")
-	}
-
-	answer, ok := result.Choices[0].Message.Content.(string)
+	answer, ok := reply.Content.(string)
 	if !ok {
-		return "", fmt.Errorf("Response is not a text: %v", result.Choices[0].Message.Content)
+		return "", fmt.Errorf("response is not a text: %v", reply.Content)
 	}
 
 	return answer, nil

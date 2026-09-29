@@ -175,6 +175,20 @@ func toJSONB(v any, n int) []byte {
 	return b
 }
 
+func decodeJSONB[T any](raw []byte) []T {
+	out := []T{}
+	if len(raw) == 0 {
+		return out
+	}
+	if err := json.Unmarshal(raw, &out); err != nil || out == nil {
+		if err != nil {
+			log.Printf("failed to decode jsonb: %v", err)
+		}
+		return []T{}
+	}
+	return out
+}
+
 func uuidString(u pgtype.UUID) string {
 	if !u.Valid {
 		return ""
@@ -354,4 +368,8 @@ func isPathAllowed(absPath string) bool {
 		}
 	}
 	return false
+}
+
+func errResponse(err error) gin.H {
+	return gin.H{"error": err.Error()}
 }
