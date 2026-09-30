@@ -1,4 +1,8 @@
 import { Widget } from "@/lib/widget-schema";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { PanelRightOpen } from "lucide-react";
+import { useWidgetStore } from "@/lib/store/widgets-store";
 
 type GeneratedDocument = {
     title: string;
@@ -21,6 +25,8 @@ type MessageBubbleProps = {
 
 export function MessageBubble({ message }: MessageBubbleProps){
     const isUser = message.role === "user";
+    const openPanel = useWidgetStore((state) => state.openPanel);
+    const widgets = message.widgets ?? [];
 
     return (
         <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -31,7 +37,40 @@ export function MessageBubble({ message }: MessageBubbleProps){
                     : "bg-white border border-gray-200 border-l-4 border-l-indigo-600 text-gray-900"
                 }`}
             >
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                {isUser ? (
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                ) : (
+                    <div
+                        className="prose prose-sm max-w-none
+                                   prose-headings:mt-4 prose-headings:mb-2
+                                   prose-h1:text-lg prose-h2:text-base prose-h3:text-sm
+                                   prose-p:my-2 prose-li:my-0.5 prose-hr:my-4"
+                    >
+                        <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                                // tabel lebar bisa di-scroll horizontal, tidak melebarkan bubble
+                                table: ({ children }) => (
+                                    <div className="overflow-x-auto">
+                                        <table>{children}</table>
+                                    </div>
+                                ),
+                            }}
+                        >
+                            {message.content}
+                        </ReactMarkdown>
+                    </div>
+                )}
+
+                {widgets.length > 0 && (
+                    <button
+                        onClick={() => openPanel(widgets[0].id)}
+                        className="mt-2 flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:bg-gray-100"
+                    >
+                        <PanelRightOpen size={14} />
+                        Lihat Visualisasi ({widgets.length})
+                    </button>
+                )}
 
                 {message.documents?.map((doc, i) => (
                     <div

@@ -26,6 +26,6 @@ psql:
 	docker exec -it agentic-ai-db psql -U agentic -d agentic_ai_prototype
 
 server: 
-	go run cmd/server/main.go
+	go run cmd/main.go
 
 .PHONY: postgres createdb dropdb migrateup migratedown sqlc test psql server

@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { ChatWindow } from "@/components/chat/chat-window";
 import { DashboardPanel } from "@/components/dashboard/dashboard-panel";
 import { useWidgetStore } from "@/lib/store/widgets-store";
@@ -14,7 +15,9 @@ export default function ChatPage() {
                     isPanelOpen ? "w-[38%]" : "w-full"
                 }`}
             >
-                <ChatWindow/>
+                <Suspense fallback={null}>
+                    <ChatWindow />
+                </Suspense>
             </div>
             {isPanelOpen && (
                 <div className="h-full flex-1">

@@ -2,7 +2,24 @@ import { parseWidget, Widget } from "@/lib/widget-schema";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
 
+type RawWidget = {
+    id: string;
+    widget_type: string;
+    title: string;
+    data: string;
+};
+
+type RawDocument = {
+    title: string;
+    theme: string;
+    output_path: string;
+};
+
 type ChatAgentResponse = {
+    conversation_id: string;
+    title: string;
+    user_message_id: string;
+    message_id: string;
     answer: string;
     pages: {
         document_id: string;
@@ -10,16 +27,24 @@ type ChatAgentResponse = {
         page_number: number;
         page_image: string;
     }[];
-    documents: {
-        title: string;
-        theme: string;
-        output_path: string;
-    }[];
-    widgets: {
-        widget_type: string;
-        title: string;
-        data: string;
-    }[];
+    documents: RawDocument[];
+    widgets: RawWidget[];
+    is_partial: boolean;
+};
+
+type RawConversation = {
+    id: string;
+    title: string;
+    created_at: string;
+    updated_at: string;
+};
+
+type RawMessage = {
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    widgets: RawWidget[];
+    documents: RawDocument[];
     is_partial: boolean;
 };
 
@@ -27,42 +52,139 @@ type GeneratedDocument = {
     title: string;
     theme: string;
     outputPath: string;
-}
+};
 
 type ChatResult = {
+    conversationId: string;
+    title: string;
     answer: string;
     widgets: Widget[];
     documents: GeneratedDocument[];
     isPartial: boolean;
+};
+
+export type Conversation = {
+    id: string;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type ChatMessage = {
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    widgets: Widget[];
+    documents: GeneratedDocument[];
+    isPartial: boolean;
+};
+
+export class ApiError extends Error {
+    status: number;
+    constructor(status: number, message: string) {
+        super(message);
+        this.status = status;
+    }
 }
 
-export async function sendChatMessage(query: string): Promise<ChatResult> {
-    const res = await fetch(`${API_BASE_URL}/chat/agent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
-    });
+async function ensureOk(res: Response): Promise<void> {
+    if (res.ok) return;
 
-    if (!res.ok) {
-        throw new Error(`API error: ${res.status} ${res.statusText}`);
-    }
+    let message = `${res.status} ${res.statusText}`;
+    try {
+        const body = await res.json();
+        if (body?.error) message = body.error;
+    } catch {
 
-    const raw: ChatAgentResponse = await res.json();
+    } throw new ApiError(res.status, message);
+}
 
-    const parsedWidget = raw.widgets
+function mapWidgets(raw: RawWidget[] | null | undefined): Widget[] {
+    return (raw ?? [])
         .map(parseWidget)
         .filter((w): w is Widget => w !== null);
+}
 
-    const documents: GeneratedDocument[] = raw.documents.map((d) => ({
+function mapDocuments(raw: RawDocument[] | null | undefined): GeneratedDocument[] {
+    return (raw ?? []).map((d) => ({
         title: d.title,
         theme: d.theme,
         outputPath: d.output_path,
     }));
+}
+
+export async function sendChatMessage(query: string, conversationId?: string | null): Promise<ChatResult> {
+    const res = await fetch(`${API_BASE_URL}/chat/agent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, conversation_id: conversationId ?? "" }),
+    });
+
+    await ensureOk(res);
+
+    const raw: ChatAgentResponse = await res.json();
 
     return {
+        conversationId: raw.conversation_id,
+        title: raw.title,
         answer: raw.answer,
-        widgets: parsedWidget,
-        documents,
+        widgets: mapWidgets(raw.widgets),
+        documents: mapDocuments(raw.documents),
         isPartial: raw.is_partial,
     };
+}
+
+export async function listConversations(): Promise<Conversation[]> {
+    const res = await fetch (`${API_BASE_URL}/conversations`);
+    await ensureOk(res);
+
+    const raw: RawConversation[] = await res.json();
+
+    return raw.map((c) => ({
+        id: c.id,
+        title: c.title,
+        createdAt: c.created_at,
+        updatedAt: c.updated_at,
+    }));
+}
+
+export async function getConversationMessage(id: string): Promise<ChatMessage[]> {
+    const res = await fetch (`${API_BASE_URL}/conversations/${id}/messages`);
+    await ensureOk(res);
+
+    const raw: RawMessage[] = await res.json();
+
+    return raw.map((c) => ({
+        id: c.id,
+        role: c.role,
+        content: c.content,
+        widgets: mapWidgets(c.widgets),
+        documents: mapDocuments(c.documents),
+        isPartial: c.is_partial,
+    }));
+}
+
+export async function renameConversation(id: string, title: string): Promise<Conversation> {
+    const res = await fetch (`${API_BASE_URL}/conversations/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+    });
+
+    await ensureOk(res);
+
+    const c: RawConversation = await res.json();
+    return {
+        id: c.id,
+        title: c.title,
+        createdAt: c.created_at,
+        updatedAt: c.updated_at,
+    };
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+    const res = await fetch (`${API_BASE_URL}/conversations/${id}`, {
+        method: "DELETE",
+    });
+    await ensureOk(res);
 }

@@ -36,8 +36,8 @@ func (s *Server) registerRoutes() {
 	s.router.GET("/documents/download", s.h.DownloadDocument)
 	s.router.GET("/conversations", s.h.ListConversations)
 	s.router.GET("/conversations/:id/messages", s.h.GetConversationMessages)
-	s.router.PUT("/conversations", s.h.RenameConversation)
-	s.router.DELETE("/conversations", s.h.DeleteConversation)
+	s.router.PUT("/conversations/:id", s.h.RenameConversation)
+	s.router.DELETE("/conversations/:id", s.h.DeleteConversation)
 }
 
 func (s *Server) Start(address string) error {

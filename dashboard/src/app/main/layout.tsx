@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ConversationList } from "@/components/chat/conversations-list";
 import { MessageSquare, LayoutGrid, ChevronLeft, ChevronRight } from "lucide-react";
 
 const navItems = [
@@ -62,6 +63,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             </Link>
           );
         })}
+        {!collapsed && pathname.startsWith("/main/chat") && (
+          <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
+            <Suspense fallback={null}>
+              <ConversationList />
+            </Suspense>
+          </div>
+        )}
       </aside>
       <main className="flex-1 overflow-hidden bg-gray-50">{children}</main>
     </div>
