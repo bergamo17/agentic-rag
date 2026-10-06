@@ -174,8 +174,11 @@ func executePythonSchema() openai.Tool {
 	return openai.Tool{
 		Type: "function",
 		Function: openai.FunctionSpec{
-			Name:        "execute_python",
-			Description: "Write and execute python code to build a custom .docx document using python-docx, for request that don't fit the standard daily-report/internal-memo/proposal templates. The script must save its output to '/workspace/output/output.docx'.",
+			Name: "execute_python",
+			Description: "Write and execute Python code in an isolated sandbox (no internet) to generate a custom file for requests that don't fit the standard daily-report/internal-memo/proposal templates. " +
+				"Supported output formats and libraries: " +
+				"docx (python-docx), pdf (reportlab), xlsx (openpyxl), md (plain text, no library needed). " +
+				"The script MUST save its result to '/workspace/output/output.<output_format>' (e.g. /workspace/output/output.pdf).",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -183,12 +186,17 @@ func executePythonSchema() openai.Tool {
 						"type":        "string",
 						"description": "Complete python script using the python-docx library. Must import docx, build the Document object, and call doc.save('/workspace/output/output.docx').",
 					},
+					"output_format": map[string]any{
+						"type":        "string",
+						"enum":        []string{"docx", "pdf", "xlsx", "md"},
+						"description": "File format the script produces. Must match the file extension used in the save path.",
+					},
 					"title": map[string]any{
 						"type":        "string",
 						"description": "The generated document's title from the execute_python tool",
 					},
 				},
-				"required": []string{"code"},
+				"required": []string{"code", "output_format", "title"},
 			},
 		},
 	}

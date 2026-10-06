@@ -32,14 +32,14 @@ func defaultURL(p string) string {
 	if p == "anthropic" {
 		return "https://api.anthropic.com/v1/messages"
 	}
-	return "https://api.openai.com/v1/chat/completions"
+	return "https://ai.sumopod.com/v1/chat/completions"
 }
 
 func defaultModel(p string) string {
 	if p == "anthropic" {
-		return "claude-sonnet-5-5"
+		return "claude-sonnet -5-5"
 	}
-	return "gpt-4o"
+	return "claude-sonnet-5"
 }
 
 func envInt(key string, fallback int) int {
@@ -140,6 +140,7 @@ type GeneratedDocument struct {
 	Title      string `json:"title"`
 	OutputPath string `json:"output_path"`
 	Theme      string `json:"theme"`
+	Format     string `json:"format"`
 }
 
 func (c *Client) ChatCompletion(message []Message, tools []Tool) (Message, error) {

@@ -6,6 +6,10 @@ import (
 	"github.com/bergamo17/agentic-rag-prototype/internal/openai"
 )
 
+var customFormatKeywords = []string{
+	"pdf", "docx", "xlsx", "markdown", "md", "spreadsheet", "docs", "excel",
+}
+
 func ClassifyRequest(userMessage string) bool {
 	standardKeywords := []string{
 		"formal report", "daily report",
@@ -14,6 +18,13 @@ func ClassifyRequest(userMessage string) bool {
 	}
 
 	lower := strings.ToLower(userMessage)
+
+	for _, kw := range customFormatKeywords {
+		if strings.Contains(lower, kw) {
+			return false
+		}
+	}
+
 	for _, kw := range standardKeywords {
 		if strings.Contains(lower, kw) {
 			return true

@@ -48,6 +48,8 @@ ATURAN PENTING setelah memanggil generate_widget, create_docx, atau execute_pyth
 - Hasil widget/dokumen dirender otomatis dan terpisah oleh antarmuka -- kamu tidak perlu dan tidak boleh mereferensikannya dengan syntax markdown apapun.
 - Cukup rujuk secara natural, misalnya "Berikut tabelnya:" atau "Saya sudah buatkan grafiknya." tanpa embed apapun.
 - Jangan pernah mengarang nama file atau path yang tidak muncul di tool result.
+- Gunakan execute_python dengan output_format yang sesuai permintaan user: "pdf" untuk laporan siap cetak, "xlsx" untuk data tabular/hitungan, "md" untuk catatan/dokumentasi teks, "docx" untuk dokumen Word kustom.
+- Jika user meminta lebih dari satu format, panggil execute_python sekali per format.
 
 Gunakan search_documents untuk pertanyaan yang mungkin terjawab dari dokumen yang diunggah, web_search untuk informasi umum/terkini, dan generate_widget saat data akan lebih jelas ditampilkan secara visual.`
 
@@ -294,6 +296,7 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 			"title":       d.Title,
 			"theme":       d.Theme,
 			"output_path": d.OutputPath,
+			"format":      d.Format,
 		}
 	}
 

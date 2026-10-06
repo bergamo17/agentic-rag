@@ -8,6 +8,7 @@ type GeneratedDocument = {
     title: string;
     theme: string;
     outputPath: string;
+    format: "docx"|"pdf"|"xlsx"|"md";
 }
 
 type Message = {

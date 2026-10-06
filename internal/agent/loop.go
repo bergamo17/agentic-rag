@@ -160,23 +160,36 @@ func executeTool(mlClient *mlservice.Client,
 
 	case "execute_python":
 		var args struct {
-			Code  string `json:"code"`
-			Title string `json:"title"`
+			Code         string `json:"code"`
+			OutputFormat string `json:"output_format"`
+			Title        string `json:"title"`
 		}
 
 		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
 			return "", nil, nil, nil, err
 		}
 
-		result, err := sandboxClient.RunCode(ctx, args.Code, "output.docx")
+		ext, err := docbuilder.ParseFormat(args.OutputFormat)
+		if err != nil {
+			return "", nil, nil, nil, err
+		}
+
+		result, err := sandboxClient.RunCode(ctx, args.Code, args.Title)
 		if err != nil {
 			return "", nil, nil, nil, fmt.Errorf("Failed to execute the code: %w", err)
 		}
 
+		finalPath, err := docbuilder.RenameOutput(result.OutputPath, args.Title, ext)
+		if err != nil {
+			log.Printf("Failed to rename the output: %v", err)
+			finalPath = result.OutputPath
+		}
+
 		doc := openai.GeneratedDocument{
 			Title:      args.Title,
-			OutputPath: result.OutputPath,
+			OutputPath: finalPath,
 			Theme:      "custom",
+			Format:     ext,
 		}
 
 		return fmt.Sprintf("Document '%s' created successfully", args.Title), nil, nil, []openai.GeneratedDocument{doc}, nil

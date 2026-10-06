@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,11 +32,60 @@ type RunResult struct {
 
 const defaultTimeout = 30 * time.Second
 
+var allowedFormat = map[string]bool{
+	"docx": true,
+	"pdf":  true,
+	"xlsx": true,
+	"md":   true,
+}
+
 func NewSandboxClient(inputDir, outputDir string) *SandboxClient {
 	return &SandboxClient{
 		InputDir:  inputDir,
 		OutputDir: outputDir,
 	}
+}
+
+func ParseFormat(format string) (string, error) {
+	ext := strings.ToLower(strings.TrimSpace(format))
+	if !allowedFormat[ext] {
+		return "", fmt.Errorf("Unsupported output format: %q", format)
+	}
+	return ext, nil
+}
+
+func SafeFileBase(title string) string {
+	var b strings.Builder
+	prevDash := false
+	for _, r := range strings.ToLower(title) {
+		switch {
+		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
+			b.WriteRune(r)
+			prevDash = false
+		case !prevDash && b.Len() > 0:
+			b.WriteByte('-')
+			prevDash = true
+		}
+	}
+	s := strings.Trim(b.String(), "-")
+	if len(s) > 60 {
+		s = strings.Trim(s[:60], "-")
+	}
+	if s == "" {
+		s = "dokumen"
+	}
+	return s
+}
+
+func RenameOutput(oldPath, title, ext string) (string, error) {
+	newPath := filepath.Join(filepath.Dir(oldPath), SafeFileBase(title)+"."+ext)
+	if newPath == oldPath {
+		return oldPath, nil
+	}
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return "", err
+	}
+	return newPath, nil
 }
 
 func (s *SandboxClient) prepareRunDirs() (*runDirs, error) {
@@ -85,6 +135,9 @@ func (s *SandboxClient) dockerExec(ctx context.Context, dirs *runDirs) (string, 
 	cmd := exec.CommandContext(ctx, "docker", "run",
 		"--rm",
 		"--network", "none",
+		"--memory", "256m",
+		"--cpus", "1",
+		"--pids-limit", "64",
 		"-v", dirs.input+":/workspace/input:ro",
 		"-v", dirs.output+":/workspace/output",
 		"docbuilder-sandbox",
