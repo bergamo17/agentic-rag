@@ -23,7 +23,8 @@ venv/
 
 *.docx
 
-sandbox/
+sandbox/input/
+sandbox/output/
 
 .DS_Store
 

@@ -8,21 +8,23 @@ import { sendChatMessage, getConversationMessage, ApiError, type ChatMessage } f
 import { MessageBubble} from "./message-bubble";
 import { ChatInput } from "./chat-input";
 import type { Widget } from "@/lib/widget-schema";
+import type { GeneratedDocument, Message } from "@/lib/chat-type";
 
-type GeneratedDocument = {
-    title: string;
-    theme: string;
-    outputPath: string;
-}
+// type GeneratedDocument = {
+//     title: string;
+//     theme: string;
+//     outputPath: string;
+// }
 
-type Message = {
-    id: string;
-    role: "user" | "agent";
-    content: string;
-    isPartial?: boolean;
-    widgets?: Widget[];
-    documents?: GeneratedDocument[];
-}
+// type Message = {
+//     id: string;
+//     role: "user" | "agent";
+//     content: string;
+//     attachment?: string[];
+//     isPartial?: boolean;
+//     widgets?: Widget[];
+//     documents?: GeneratedDocument[];
+// }
 
 function toMessage(m: ChatMessage): Message {
     return {
@@ -95,12 +97,12 @@ export function ChatWindow() {
         };
     }, [urlConversationId, addWidgets, clearWidgets, router]);
 
-    async function handleSend(query: string) {
+    async function handleSend(query: string, files: File[]) {
         const session = sessionRef.current;
 
         setMessages((prev) => [
             ...prev,
-            { id: crypto.randomUUID(), role: "user", content: query },
+            { id: crypto.randomUUID(), role: "user", content: query, attachment: files.map((f) => f.name), },
         ]);
         setIsLoading(true);
         setError(null);

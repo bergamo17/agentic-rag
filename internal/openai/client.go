@@ -54,6 +54,27 @@ type Client struct {
 	HTTPClient *http.Client
 }
 
+type ImageInput struct {
+	MIME   string
+	Base64 string
+}
+
+func NewUserContent(text string, images []ImageInput) interface{} {
+	if len(images) == 0 {
+		return text
+	}
+
+	blocks := make([]contentBlock, 0, len(images)+1)
+	blocks = append(blocks, contentBlock{Type: "text", Text: text})
+	for _, img := range images {
+		blocks = append(blocks, contentBlock{
+			Type:     "image_url",
+			ImageURL: &imageURL{URL: "data:" + img.MIME + ";base64," + img.Base64},
+		})
+	}
+	return blocks
+}
+
 func NewClient() *Client {
 	loadConfig()
 
@@ -157,7 +178,7 @@ func (c *Client) chatOpenAi(message []Message, tools []Tool) (Message, error) {
 		Model:     modelName,
 		Messages:  message,
 		Tools:     tools,
-		MaxTokens: 1000,
+		MaxTokens: envInt("MAX_TOKENS", 4096),
 	}
 
 	payload, err := json.Marshal(reqBody)

@@ -15,6 +15,7 @@ type Message = {
     id: string;
     role: "user" | "agent";
     content: string;
+    attachment?: string[];
     isPartial?: boolean;
     widgets?: Widget[];
     documents?: GeneratedDocument[];

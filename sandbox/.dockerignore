@@ -1,0 +1,9 @@
+# 1. Abaikan seluruh isi root repository
+*
+
+# 2. Loloskan Dockerfile dan dockerignore itu sendiri agar bisa dibaca BuildKit
+!sandbox/Dockerfile
+!sandbox/Dockerfile.dockerignore
+
+# 3. Loloskan file helper yang akan di-COPY
+!helper/pdf_helpers.py

@@ -8,3 +8,4 @@ scikit-learn
 pillow
 torch
 pdf2image
+reportlab==4.5.1

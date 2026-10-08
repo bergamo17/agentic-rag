@@ -2,15 +2,15 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	db "github.com/bergamo17/agentic-rag-prototype/db/sqlc"
 	"github.com/bergamo17/agentic-rag-prototype/internal/agent"
@@ -18,7 +18,7 @@ import (
 	mlservice "github.com/bergamo17/agentic-rag-prototype/internal/mlservices"
 	"github.com/bergamo17/agentic-rag-prototype/internal/openai"
 	"github.com/bergamo17/agentic-rag-prototype/internal/websearch"
-	"github.com/google/uuid"
+	"github.com/bergamo17/agentic-rag-prototype/util"
 )
 
 type Handlers struct {
@@ -36,10 +36,10 @@ type pageRef struct {
 	PageNumber int    `json:"page_number"`
 }
 
-const (
-	historyLimit  = 20
-	maxTitleRunes = 50
-)
+// const (
+// 	historyLimit  = 20
+// 	maxTitleRunes = 50
+// )
 
 const agentSystemPrompt = `Kamu adalah asisten AI yang membantu menjawab pertanyaan menggunakan dokumen yang tersedia, pencarian web, dan alat visualisasi.
 
@@ -95,15 +95,16 @@ func (h *Handlers) EmbedDocument(c *gin.Context) {
 }
 
 type ChatRequest struct {
-	Query          string `json:"query"`
-	K              int    `json:"k"`
-	ConversationID string `json:"conversation_id"`
+	Query          string                  `json:"query" form:"query"`
+	K              int                     `json:"k" form:"k"`
+	ConversationID string                  `json:"conversation_id" form:"conversation_id"`
+	Files          []*multipart.FileHeader `json:"-" form:"files"`
 }
 
 func (h *Handlers) Chat(c *gin.Context) {
 	var req ChatRequest
 
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -149,59 +150,10 @@ func (h *Handlers) Chat(c *gin.Context) {
 	})
 }
 
-func makeTitle(q string) string {
-	q = strings.Join(strings.Fields(q), " ")
-	r := []rune(q)
-	if len(r) > maxTitleRunes {
-		return string(r[:maxTitleRunes]) + "…"
-	}
-	return q
-}
-
-func parseUUID(s string) (pgtype.UUID, error) {
-	id, err := uuid.Parse(s)
-	if err != nil {
-		return pgtype.UUID{}, err
-	}
-	return pgtype.UUID{Bytes: id, Valid: true}, nil
-}
-
-func toJSONB(v any, n int) []byte {
-	if n == 0 {
-		return nil
-	}
-	b, err := json.Marshal(v)
-	if err != nil {
-		return nil
-	}
-	return b
-}
-
-func decodeJSONB[T any](raw []byte) []T {
-	out := []T{}
-	if len(raw) == 0 {
-		return out
-	}
-	if err := json.Unmarshal(raw, &out); err != nil || out == nil {
-		if err != nil {
-			log.Printf("failed to decode jsonb: %v", err)
-		}
-		return []T{}
-	}
-	return out
-}
-
-func uuidString(u pgtype.UUID) string {
-	if !u.Valid {
-		return ""
-	}
-	return uuid.UUID(u.Bytes).String()
-}
-
 func (h *Handlers) ChatAgent(c *gin.Context) {
 	var req ChatRequest
 
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -209,14 +161,14 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 	var conv db.Conversation
 
 	if req.ConversationID == "" {
-		conversation, err := h.Q.CreateConversation(c, makeTitle(req.Query))
+		conversation, err := h.Q.CreateConversation(c, util.MakeTitle(req.Query))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create conversation."})
 			return
 		}
 		conv = conversation
 	} else {
-		convId, err := parseUUID(req.ConversationID)
+		convId, err := util.ParseUUID(req.ConversationID)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid conversation id."})
 			return
@@ -254,8 +206,16 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		return
 	}
 
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	sys, err := util.BuildSystemPrompt(util.PromptData{
+		CompanyName: "Ascendiz",
+		Now:         time.Now().In(loc).Format("Monday, 2 January 2006 15:04"),
+		UserName:    "Ariel",
+		Department:  "Technology",
+	})
+
 	messages := make([]openai.Message, 0, len(recentMessages)+1)
-	messages = append(messages, openai.Message{Role: "system", Content: agentSystemPrompt})
+	messages = append(messages, openai.Message{Role: "system", Content: sys})
 	for i := len(recentMessages) - 1; i >= 0; i-- {
 		messages = append(messages, openai.Message{
 			Role:    recentMessages[i].Role,
@@ -306,9 +266,9 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		ConversationID: conv.ID,
 		Role:           "assistant",
 		Content:        answer,
-		Widgets:        toJSONB(widgets, len(widgets)),
-		Documents:      toJSONB(docMeta, len(docMeta)),
-		Pages:          toJSONB(pageRefs, len(pageRefs)),
+		Widgets:        util.ToJSONB(widgets, len(widgets)),
+		Documents:      util.ToJSONB(docMeta, len(docMeta)),
+		Pages:          util.ToJSONB(pageRefs, len(pageRefs)),
 		IsPartial:      isPartial,
 	})
 	if err != nil {
@@ -321,10 +281,10 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"conversation_id": uuidString(conv.ID),
+		"conversation_id": util.UuidString(conv.ID),
 		"title":           conv.Title,
-		"user_message_id": uuidString(userMessage.ID),
-		"message_id":      uuidString(assistantMessage.ID),
+		"user_message_id": util.UuidString(userMessage.ID),
+		"message_id":      util.UuidString(assistantMessage.ID),
 		"answer":          answer,
 		"pages":           pageMeta,
 		"widgets":         widgets,

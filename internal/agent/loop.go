@@ -174,7 +174,7 @@ func executeTool(mlClient *mlservice.Client,
 			return "", nil, nil, nil, err
 		}
 
-		result, err := sandboxClient.RunCode(ctx, args.Code, args.Title)
+		result, err := sandboxClient.RunCode(ctx, args.Code, "output."+ext)
 		if err != nil {
 			return "", nil, nil, nil, fmt.Errorf("Failed to execute the code: %w", err)
 		}

@@ -7,6 +7,7 @@ import (
 
 	db "github.com/bergamo17/agentic-rag-prototype/db/sqlc"
 	"github.com/bergamo17/agentic-rag-prototype/internal/openai"
+	"github.com/bergamo17/agentic-rag-prototype/util"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 )
@@ -45,7 +46,7 @@ func (h *Handlers) ListConversations(ctx *gin.Context) {
 	result := make([]conversationResponse, 0, len(listConv))
 	for _, r := range listConv {
 		result = append(result, conversationResponse{
-			ID:        uuidString(r.ID),
+			ID:        util.UuidString(r.ID),
 			Title:     r.Title,
 			CreatedAt: r.CreatedAt.Time,
 			UpdatedAt: r.UpdatedAt.Time,
@@ -64,7 +65,7 @@ func (h *Handlers) GetConversationMessages(ctx *gin.Context) {
 		return
 	}
 
-	arg, err := parseUUID(req.ID)
+	arg, err := util.ParseUUID(req.ID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse conversation ID"})
 		return
@@ -89,11 +90,11 @@ func (h *Handlers) GetConversationMessages(ctx *gin.Context) {
 	result := make([]messageResponse, 0, len(listMessages))
 	for _, m := range listMessages {
 		result = append(result, messageResponse{
-			ID:        uuidString(m.ID),
+			ID:        util.UuidString(m.ID),
 			Role:      m.Role,
 			Content:   m.Content,
-			Widgets:   decodeJSONB[openai.Widget](m.Widgets),
-			Documents: decodeJSONB[openai.GeneratedDocument](m.Documents),
+			Widgets:   util.DecodeJSONB[openai.Widget](m.Widgets),
+			Documents: util.DecodeJSONB[openai.GeneratedDocument](m.Documents),
 			IsPartial: m.IsPartial,
 		})
 	}
@@ -119,7 +120,7 @@ func (h *Handlers) RenameConversation(ctx *gin.Context) {
 		return
 	}
 
-	id, err := parseUUID(renameUri.ID)
+	id, err := util.ParseUUID(renameUri.ID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse conversation ID"})
 		return
@@ -147,7 +148,7 @@ func (h *Handlers) RenameConversation(ctx *gin.Context) {
 	}
 
 	result := &conversationResponse{
-		ID:        uuidString(updatedConversation.ID),
+		ID:        util.UuidString(updatedConversation.ID),
 		Title:     updatedConversation.Title,
 		CreatedAt: updatedConversation.CreatedAt.Time,
 		UpdatedAt: updatedConversation.UpdatedAt.Time,
@@ -165,7 +166,7 @@ func (h *Handlers) DeleteConversation(ctx *gin.Context) {
 		return
 	}
 
-	id, err := parseUUID(req.ID)
+	id, err := util.ParseUUID(req.ID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, errResponse(err))
 		return

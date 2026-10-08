@@ -175,16 +175,29 @@ func executePythonSchema() openai.Tool {
 		Type: "function",
 		Function: openai.FunctionSpec{
 			Name: "execute_python",
-			Description: "Write and execute Python code in an isolated sandbox (no internet) to generate a custom file for requests that don't fit the standard daily-report/internal-memo/proposal templates. " +
-				"Supported output formats and libraries: " +
-				"docx (python-docx), pdf (reportlab), xlsx (openpyxl), md (plain text, no library needed). " +
-				"The script MUST save its result to '/workspace/output/output.<output_format>' (e.g. /workspace/output/output.pdf).",
+			Description: "Write and execute Python code in an isolated sandbox (no internet) to generate a custom file for requests that don't fit the standard templates. " +
+				"Supported formats: docx (python-docx), pdf (reportlab), xlsx (openpyxl), md (plain text). " +
+				"The script MUST save its result to '/workspace/output/output.<output_format>'. " +
+				"\n\nFor output_format=pdf: ALWAYS start with `from pdf_helpers import *`. " +
+				"Every helper ADDS its content to the document automatically; do NOT create a story list and do NOT wrap calls in append. " +
+				"Available: title(text), h2(text), body(text), spacer(h), bullets(list_of_str), callout(text), " +
+				"table(rows, col_widths), formula(latex), figure(matplotlib_fig). " +
+				"End the script with build('/workspace/output/output.pdf', 'Document title'). " +
+				"Inline markup in text: <b>, <i>, <super>, <sub>. " +
+				"RULES: (1) Never use combining characters (X̄, x̂); put every math expression in formula(latex). " +
+				"(2) Plain symbols like μ σ √ → ≥ are fine inline. " +
+				"(3) Put each formula on its own line via formula(). " +
+				"(4) Use callout() for key takeaways and table() for comparisons. " +
+				"(5) For visual concepts, include a figure() made with matplotlib. " +
+				"(6) Write real symbols (μ, σ), not spelled-out words like 'mu' or 'sigma kuadrat'. " +
+				"(7) Proofread for typos or garbled phrases before finalizing. " +
+				"Example: title('Judul'); h2('1. Bagian'); body('Teks'); formula(r'a^2+b^2=c^2'); build('/workspace/output/output.pdf', 'Judul').",
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"code": map[string]any{
 						"type":        "string",
-						"description": "Complete python script using the python-docx library. Must import docx, build the Document object, and call doc.save('/workspace/output/output.docx').",
+						"description": "Complete Python script. Must save the file to /workspace/output/output.<output_format> (for pdf, use the pdf_helpers API described in the tool description).",
 					},
 					"output_format": map[string]any{
 						"type":        "string",

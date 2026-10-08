@@ -1,4 +1,5 @@
 import { parseWidget, Widget } from "@/lib/widget-schema";
+import type { GeneratedDocument } from "@/lib/chat-type";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
 
@@ -13,6 +14,7 @@ type RawDocument = {
     title: string;
     theme: string;
     output_path: string;
+    format: string;
 };
 
 type ChatAgentResponse = {
@@ -48,11 +50,11 @@ type RawMessage = {
     is_partial: boolean;
 };
 
-type GeneratedDocument = {
-    title: string;
-    theme: string;
-    outputPath: string;
-};
+// type GeneratedDocument = {
+//     title: string;
+//     theme: string;
+//     outputPath: string;
+// };
 
 type ChatResult = {
     conversationId: string;
@@ -110,14 +112,19 @@ function mapDocuments(raw: RawDocument[] | null | undefined): GeneratedDocument[
         title: d.title,
         theme: d.theme,
         outputPath: d.output_path,
+        format: d.format ?? "",
     }));
 }
 
-export async function sendChatMessage(query: string, conversationId?: string | null): Promise<ChatResult> {
+export async function sendChatMessage(query: string, conversationId?: string | null, files: File[] = []): Promise<ChatResult> {
+    const formData = new FormData();
+    formData.append("query", query);
+    if (conversationId) formData.append("conversation_id", conversationId);
+    files.forEach((f) => formData.append("files", f));
+    
     const res = await fetch(`${API_BASE_URL}/chat/agent`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, conversation_id: conversationId ?? "" }),
+        body: formData,
     });
 
     await ensureOk(res);
@@ -131,6 +138,7 @@ export async function sendChatMessage(query: string, conversationId?: string | n
         widgets: mapWidgets(raw.widgets),
         documents: mapDocuments(raw.documents),
         isPartial: raw.is_partial,
+        skippedFiles: raw.skipped_files ?? [],
     };
 }
 
