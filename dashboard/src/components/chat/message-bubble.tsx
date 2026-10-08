@@ -3,23 +3,24 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PanelRightOpen } from "lucide-react";
 import { useWidgetStore } from "@/lib/store/widgets-store";
+import type { GeneratedDocument, Message } from "@/lib/chat-type";
 
-type GeneratedDocument = {
-    title: string;
-    theme: string;
-    outputPath: string;
-    format: "docx"|"pdf"|"xlsx"|"md";
-}
+// type GeneratedDocument = {
+//     title: string;
+//     theme: string;
+//     outputPath: string;
+//     format: "docx"|"pdf"|"xlsx"|"md";
+// }
 
-type Message = {
-    id: string;
-    role: "user" | "agent";
-    content: string;
-    attachment?: string[];
-    isPartial?: boolean;
-    widgets?: Widget[];
-    documents?: GeneratedDocument[];
-};
+// type Message = {
+//     id: string;
+//     role: "user" | "agent";
+//     content: string;
+//     attachment?: string[];
+//     isPartial?: boolean;
+//     widgets?: Widget[];
+//     documents?: GeneratedDocument[];
+// };
 
 type MessageBubbleProps = {
     message: Message;

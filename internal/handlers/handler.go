@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"mime/multipart"
@@ -158,6 +159,30 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		return
 	}
 
+	if len(req.Files) > maxFiles {
+		c.JSON(http.StatusBadRequest, gin.H{"error": errors.New("Reach the maximum files per chat")})
+		return
+	}
+
+	att := processAttachments(req.Files)
+
+	if len(req.Files) > 0 && att.Text == "" && len(att.Images) == 0 && len(att.Documents) == 0 {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "There is no file that can be processed: " + strings.Join(att.Skipped, ", "),
+		})
+		return
+	}
+
+	if strings.TrimSpace(req.Query) == "" {
+		if att.Text == "" && len(att.Images) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "File cannot be processed: " + strings.Join(att.Skipped, ", "),
+			})
+			return
+		}
+		req.Query = "Tolong analisis file terlampir."
+	}
+
 	var conv db.Conversation
 
 	if req.ConversationID == "" {
@@ -214,12 +239,23 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		Department:  "Technology",
 	})
 
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to build the system prompt."})
+		return
+	}
+
 	messages := make([]openai.Message, 0, len(recentMessages)+1)
 	messages = append(messages, openai.Message{Role: "system", Content: sys})
 	for i := len(recentMessages) - 1; i >= 0; i-- {
+		var content interface{} = recentMessages[i].Content
+
+		if i == 0 && recentMessages[i].Role == "user" {
+			content = openai.NewUserContent(recentMessages[i].Content+att.Text, att.Images, att.Documents)
+		}
+
 		messages = append(messages, openai.Message{
 			Role:    recentMessages[i].Role,
-			Content: recentMessages[i].Content,
+			Content: content,
 		})
 	}
 
@@ -290,6 +326,7 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		"widgets":         widgets,
 		"documents":       docMeta,
 		"is_partial":      isPartial,
+		"skipped_files":   att.Skipped,
 	})
 
 }

@@ -59,20 +59,10 @@ type ImageInput struct {
 	Base64 string
 }
 
-func NewUserContent(text string, images []ImageInput) interface{} {
-	if len(images) == 0 {
-		return text
-	}
-
-	blocks := make([]contentBlock, 0, len(images)+1)
-	blocks = append(blocks, contentBlock{Type: "text", Text: text})
-	for _, img := range images {
-		blocks = append(blocks, contentBlock{
-			Type:     "image_url",
-			ImageURL: &imageURL{URL: "data:" + img.MIME + ";base64," + img.Base64},
-		})
-	}
-	return blocks
+type DocumentInput struct {
+	Name   string
+	MIME   string
+	Base64 string
 }
 
 func NewClient() *Client {
@@ -97,10 +87,17 @@ type imageURL struct {
 	URL string `json:"url"`
 }
 
+type fileInput struct {
+	Filename string `json:"filename"`
+	FileData string `json:"file_data"`
+}
+
 type contentBlock struct {
-	Type     string    `json:"type"`
-	Text     string    `json:"text,omitempty"`
-	ImageURL *imageURL `json:"image_url,omitempty"`
+	Type     string         `json:"type"`
+	Text     string         `json:"text,omitempty"`
+	ImageURL *imageURL      `json:"image_url,omitempty"`
+	File     *fileInput     `json:"file,omitempty"`
+	Doc      *DocumentInput `json:"-"`
 }
 
 type FunctionSpec struct {
@@ -169,6 +166,36 @@ func (c *Client) ChatCompletion(message []Message, tools []Tool) (Message, error
 		return c.chatAnthropic(message, tools)
 	}
 	return c.chatOpenAi(message, tools)
+}
+
+func SupportsPDF() bool { return util.Getenv("LLM_PDF_INPUT", "true") != "false" }
+
+func NewUserContent(text string, images []ImageInput, docs []DocumentInput) interface{} {
+	if len(images) == 0 && len(docs) == 0 {
+		return text
+	}
+
+	blocks := make([]contentBlock, 0, len(images)+len(docs)+1)
+	blocks = append(blocks, contentBlock{Type: "text", Text: text})
+
+	for i := range docs {
+		blocks = append(blocks, contentBlock{
+			Type: "file",
+			File: &fileInput{
+				Filename: docs[i].Name,
+				FileData: "data:" + docs[i].MIME + ";base64," + docs[i].Base64,
+			},
+			Doc: &docs[i],
+		})
+	}
+
+	for _, img := range images {
+		blocks = append(blocks, contentBlock{
+			Type:     "image_url",
+			ImageURL: &imageURL{URL: "data:" + img.MIME + ";base64," + img.Base64},
+		})
+	}
+	return blocks
 }
 
 const systemPrompt = `You are an expert professional PDF analyst who gives rigorous in-depth answers. When relevant, mention which page number supports your claims.`

@@ -36,6 +36,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
 
         onSend(trimmed, files);
         setValue("");
+        setFiles([]);
     }
 
     return (

@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/bergamo17/agentic-rag-prototype/internal/openai"
+	"github.com/bergamo17/agentic-rag-prototype/util"
 )
 
 const (
@@ -18,6 +19,7 @@ const (
 	maxFileBytes    = 10 << 20
 	maxRequestBytes = 50 << 20
 	maxTextRunes    = 40000
+	maxDocxXMLBytes = 20 << 20
 )
 
 var allowedImageMIME = map[string]bool{
@@ -28,9 +30,10 @@ var allowedImageMIME = map[string]bool{
 }
 
 type attachmentResult struct {
-	Text    string              // isi file teks, siap ditempel ke prompt
-	Images  []openai.ImageInput // gambar untuk content blocks
-	Skipped []string            // file yang tidak didukung / gagal dibaca
+	Text      string
+	Images    []openai.ImageInput
+	Documents []openai.DocumentInput
+	Skipped   []string
 }
 
 func processAttachments(files []*multipart.FileHeader) attachmentResult {
@@ -39,23 +42,22 @@ func processAttachments(files []*multipart.FileHeader) attachmentResult {
 
 	for _, fh := range files {
 		if fh.Size > maxFileBytes {
-			res.Skipped = append(res.Skipped, fh.Filename+" (terlalu besar)")
+			res.Skipped = append(res.Skipped, fh.Filename+" (too large)")
 			continue
 		}
 
 		f, err := fh.Open()
 		if err != nil {
-			res.Skipped = append(res.Skipped, fh.Filename+" (gagal dibuka)")
+			res.Skipped = append(res.Skipped, fh.Filename+" (failed to open)")
 			continue
 		}
 		data, err := io.ReadAll(io.LimitReader(f, maxFileBytes+1))
 		f.Close()
 		if err != nil || len(data) > maxFileBytes {
-			res.Skipped = append(res.Skipped, fh.Filename+" (gagal dibaca)")
+			res.Skipped = append(res.Skipped, fh.Filename+" (failed to read)")
 			continue
 		}
 
-		// Jangan percaya Content-Type dari klien; deteksi dari isi file.
 		mime := http.DetectContentType(data)
 		ext := strings.ToLower(filepath.Ext(fh.Filename))
 
@@ -66,6 +68,25 @@ func processAttachments(files []*multipart.FileHeader) attachmentResult {
 				Base64: base64.StdEncoding.EncodeToString(data),
 			})
 
+		case mime == "application/pdf":
+			if !openai.SupportsPDF() {
+				res.Skipped = append(res.Skipped, fh.Filename+" (PDF dinonaktifkan: LLM_PDF_INPUT=false)")
+				continue
+			}
+			res.Documents = append(res.Documents, openai.DocumentInput{
+				Name:   fh.Filename,
+				MIME:   mime,
+				Base64: base64.StdEncoding.EncodeToString(data),
+			})
+
+		case ext == ".docx" && mime == "application/zip":
+			content, err := util.ExtractDocxText(data)
+			if err != nil || strings.TrimSpace(content) == "" {
+				res.Skipped = append(res.Skipped, fh.Filename+" (docx kosong / tidak bisa dibaca)")
+				continue
+			}
+			util.AppendTextFile(&text, fh.Filename, content)
+
 		case (ext == ".txt" || ext == ".md") && utf8.Valid(data):
 			content := string(data)
 			if r := []rune(content); len(r) > maxTextRunes {
@@ -74,7 +95,7 @@ func processAttachments(files []*multipart.FileHeader) attachmentResult {
 			fmt.Fprintf(&text, "\n\n[File: %s]\n%s", fh.Filename, content)
 
 		default:
-			res.Skipped = append(res.Skipped, fh.Filename+" (format belum didukung)")
+			res.Skipped = append(res.Skipped, fh.Filename+" (not supporting this type of format)")
 		}
 	}
 

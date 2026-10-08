@@ -20,6 +20,7 @@ type anthropicSource struct {
 type anthropicBlock struct {
 	Type      string           `json:"type"`
 	Text      string           `json:"text,omitempty"`
+	Title     string           `json:"title,omitempty"`
 	Source    *anthropicSource `json:"source,omitempty"`
 	ID        string           `json:"id,omitempty"`
 	Name      string           `json:"name,omitempty"`
@@ -224,6 +225,12 @@ func userBlocks(v interface{}) []anthropicBlock {
 						Source: &anthropicSource{Type: "base64", MediaType: mediaType, Data: data},
 					})
 				}
+			case b.Doc != nil:
+				blocks = append(blocks, anthropicBlock{
+					Type:   "document",
+					Title:  b.Doc.Name,
+					Source: &anthropicSource{Type: "base64", MediaType: b.Doc.MIME, Data: b.Doc.Base64},
+				})
 			case b.Text != "":
 				blocks = append(blocks, anthropicBlock{Type: "text", Text: b.Text})
 			}

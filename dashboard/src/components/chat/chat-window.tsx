@@ -46,6 +46,8 @@ export function ChatWindow() {
     const [isHistoryLoading, setIsHistoryLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const [warning, setWarning] = useState<string | null>(null);
+
     // conversation yang isinya sedang tampil di layar
     const syncedIdRef = useRef<string | null>(null);
     // naik setiap pindah conversation, untuk mengabaikan respons yang datang terlambat
@@ -102,17 +104,22 @@ export function ChatWindow() {
 
         setMessages((prev) => [
             ...prev,
-            { id: crypto.randomUUID(), role: "user", content: query, attachment: files.map((f) => f.name), },
+            { id: crypto.randomUUID(), role: "user", content: query, attachment: files.map((f) => f.name) },
         ]);
         setIsLoading(true);
         setError(null);
+        setWarning(null);
 
         try {
-            const result = await sendChatMessage(query, syncedIdRef.current);
+            const result = await sendChatMessage(query, syncedIdRef.current, files);
 
             // tetap tersimpan di backend, tapi jangan tampilkan di conversation lain
             upsertConversation({ id: result.conversationId, title: result.title });
             if (session !== sessionRef.current) return;
+
+            if (result.skippedFiles.length > 0) {
+                setWarning(`File is not processed: ${result.skippedFiles.join(", ")}`);
+            }
 
             setMessages((prev) => [
                 ...prev,
@@ -150,6 +157,7 @@ export function ChatWindow() {
                 ))}
                 {isLoading && <p className="text-sm text-gray-400">Agent sedang berpikir...</p>}
                 {error && <p className="text-sm text-red-500">Error: {error}</p>}
+                {warning && <p className="text-sm text-amber-600">⚠ {warning}</p>}
             </div>
             <ChatInput onSend={handleSend} disabled={isLoading || isHistoryLoading} />
         </div>

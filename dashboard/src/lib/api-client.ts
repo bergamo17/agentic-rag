@@ -32,6 +32,7 @@ type ChatAgentResponse = {
     documents: RawDocument[];
     widgets: RawWidget[];
     is_partial: boolean;
+    skipped_files?: string[] | null;
 };
 
 type RawConversation = {
@@ -63,6 +64,7 @@ type ChatResult = {
     widgets: Widget[];
     documents: GeneratedDocument[];
     isPartial: boolean;
+    skippedFiles: string[];
 };
 
 export type Conversation = {
