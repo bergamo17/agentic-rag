@@ -1,16 +1,87 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --chart-1: #0468CC;
+  --chart-2: #0ED5DD;
+  --chart-3: #12375B;
+  --chart-4: #5FB8E8;
+  --chart-5: #7FB8E0;
+  --card: #FFFFFF;
+  --card-hover: #F7FAFD;
+  --sidebar: #0468CC;
+  --muted: #647186;
+
+  --gradient-signature: linear-gradient(135deg, #0369CD 0%, #0ED5DD 100%);
+  --gradient-signature-wash: radial-gradient(ellipse at top right,
+    rgba(3,105,205,0.10) 0%, rgba(14,213,221,0.08) 45%, transparent 75%);
+}
+
+.dark {
+  --background: #161718;
+  --foreground: #F2F9FF;
+  --card: #1F2021;
+  --card-hover: #28292A;
+  --sidebar: #0E0F10;
+  --muted: #A7ADB4;
 }
 
 @theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-manrope);
-  --font-mono: var(--font-plex-mono);
+  --color-card: var(--card);
+  --color-card-hover: var(--card-hover);
+  --color-sidebar: var(--sidebar);
+  --color-muted: var(--muted);
+
+  /* Primary */
+  --color-primary: #0468CC;
+  --color-primary-active: #0356A8;
+  --color-primary-accent: #023E7D;
+  --color-primary-soft: #E1F0FD;
+
+  /* Accent */
+  --color-accent: #0ED5DD;
+  --color-accent-active: #0BB9C0;
+  --color-accent-accent: #0B6F73;
+  --color-accent-soft: #E1FBFC;
+
+  /* Grey (didinginkan ke navy) */
+  --color-grey-50: #F2F9FF;
+  --color-grey-100: #EEF3F8;
+  --color-grey-200: #E3E9F0;
+  --color-grey-300: #CBD5E1;
+  --color-grey-400: #A7B4C4;
+  --color-grey-500: #8996A8;
+  --color-grey-600: #647186;
+  --color-grey-700: #4A5568;
+  --color-grey-800: #2B3648;
+  --color-grey-900: #152238;
+  --color-grey-950: #0B1626;
+
+  /* Surface */
+  --color-light: #FFFFFF;
+  --color-light-active: #F7FAFD;
+
+  /* Status */
+  --color-success: #0BC33F;  --color-success-soft: #E1FCE9;  --color-success-accent: #0B5C22;
+  --color-danger:  #ED143B;  --color-danger-soft:  #FFEAEE;  --color-danger-accent:  #991930;
+  --color-warning: #FEC524;  --color-warning-soft: #FFFAE9;  --color-warning-accent: #B88800;
+  --color-info:    #4921EA;  --color-info-soft:    #F0ECFF;  --color-info-accent:    #271086;
+
+  /* Radius */
+  --radius-tight-sm: 4px;
+  --radius-md: 6px;
+  --radius-soft-lg: 8px;
+  --radius-soft-xl: 10px;
+  --radius-chart-bar: 3px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -21,7 +92,7 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-grey-50);
+  color: var(--color-grey-900);
+  font-family: var(--font-sans);
 }
