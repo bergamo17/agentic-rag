@@ -39,17 +39,17 @@ export function ConversationList() {
         }
     }
 
-    return (
+        return (
         <div className="flex flex-col gap-1">
             <Link
                 href="/main/chat"
-                className="mb-2 flex items-center gap-2 rounded-[10px] border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="mb-2 flex items-center gap-2 rounded-md border border-white/30 px-3 py-2 text-sm font-medium text-white hover:bg-white/10"
             >
                 <Plus size={16} className="shrink-0" />
                 <span className="whitespace-nowrap">Chat baru</span>
             </Link>
 
-            <p className="px-3 pb-1 text-xs font-medium text-gray-400">Riwayat</p>
+            <p className="px-3 pb-1 text-xs font-medium text-[#8FC1EA]">Riwayat</p>
 
             {conversations.map((c) => {
                 const isActive = c.id === activeId;
@@ -67,7 +67,7 @@ export function ConversationList() {
                                 if (e.key === "Enter") commitRename(c.id);
                                 if (e.key === "Escape") setEditingId(null);
                             }}
-                            className="rounded-[10px] border border-indigo-300 px-3 py-2 text-sm outline-none"
+                            className="rounded-md border border-accent bg-white px-3 py-2 text-sm text-grey-900 outline-none"
                         />
                     );
                 }
@@ -75,8 +75,8 @@ export function ConversationList() {
                 return (
                     <div
                         key={c.id}
-                        className={`group flex items-center rounded-[10px] text-sm transition-colors ${
-                            isActive ? "bg-indigo-50 text-indigo-600" : "text-gray-600 hover:bg-gray-50"
+                        className={`group flex items-center rounded-md text-sm transition-colors ${
+                            isActive ? "bg-white/15 text-white" : "text-[#C7E1F7] hover:bg-white/10"
                         }`}
                     >
                         <Link
@@ -93,14 +93,14 @@ export function ConversationList() {
                                     setEditingId(c.id);
                                     setDraftTitle(c.title);
                                 }}
-                                className="rounded p-1 hover:bg-white"
+                                className="rounded p-1 hover:bg-white/15"
                             >
                                 <Pencil size={13} />
                             </button>
                             <button
                                 aria-label="Hapus"
                                 onClick={() => handleDelete(c.id, c.title)}
-                                className="rounded p-1 hover:bg-white hover:text-red-500"
+                                className="rounded p-1 hover:bg-danger hover:text-white"
                             >
                                 <Trash2 size={13} />
                             </button>

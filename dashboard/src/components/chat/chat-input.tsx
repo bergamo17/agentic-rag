@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { Paperclip, X } from "lucide-react";
 
 type ChatInputProps = {
     onSend: (query: string, files: File[]) => void;
@@ -39,23 +40,23 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
         setFiles([]);
     }
 
-    return (
-        <form onSubmit={handleSubmit} className="border-t border-gray-200 bg-white p-3">
+        return (
+        <form onSubmit={handleSubmit} className="border-t border-border bg-card p-3">
             {files.length > 0 && (
                 <div className="mb-2 flex flex-wrap gap-2">
                     {files.map((file, i) => (
                         <span
                             key={`${file.name}-${i}`}
-                            className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-700"
+                            className="flex items-center gap-1.5 rounded-tight-sm bg-primary-soft px-2 py-1 text-xs font-medium text-primary-accent"
                         >
                             {file.name}
                             <button
                                 type="button"
                                 onClick={() => removeFile(i)}
-                                className="text-gray-500 hover:text-red-600"
+                                className="text-primary-accent/70 hover:text-danger"
                                 aria-label={`Hapus ${file.name}`}
                             >
-                                ✕
+                                <X size={12} />
                             </button>
                         </span>
                     ))}
@@ -75,10 +76,10 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={disabled || files.length >= MAX_FILES}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-600 disabled:opacity-50"
+                    className="rounded-md border border-grey-300 px-3 py-2 text-grey-600 hover:bg-grey-100 disabled:opacity-50"
                     aria-label="Lampirkan file"
                 >
-                    📎
+                    <Paperclip size={16} />
                 </button>
 
                 <input
@@ -87,12 +88,12 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
                     onChange={(e) => setValue(e.target.value)}
                     disabled={disabled}
                     placeholder="Tanyakan sesuatu..."
-                    className="flex-1 rounded-[10px] border border-gray-300 bg-white px-3 py-2 text-sm text-blue-600 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 disabled:opacity-50"
+                    className="flex-1 rounded-tight-sm border border-grey-300 bg-card px-3 py-2 text-sm font-medium text-foreground placeholder:font-normal placeholder:text-grey-500 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
                 />
                 <button
                     type="submit"
                     disabled={disabled}
-                    className="rounded-md bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-50"
+                    className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_1px_2px_rgba(4,104,204,0.16),0_4px_10px_rgba(4,104,204,0.14)] hover:bg-primary-active disabled:opacity-50"
                 >
                     Kirim
                 </button>

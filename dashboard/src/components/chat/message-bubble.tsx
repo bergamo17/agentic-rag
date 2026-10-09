@@ -1,26 +1,8 @@
-import { Widget } from "@/lib/widget-schema";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { PanelRightOpen } from "lucide-react";
+import { PanelRightOpen, Paperclip, TriangleAlert } from "lucide-react";
 import { useWidgetStore } from "@/lib/store/widgets-store";
-import type { GeneratedDocument, Message } from "@/lib/chat-type";
-
-// type GeneratedDocument = {
-//     title: string;
-//     theme: string;
-//     outputPath: string;
-//     format: "docx"|"pdf"|"xlsx"|"md";
-// }
-
-// type Message = {
-//     id: string;
-//     role: "user" | "agent";
-//     content: string;
-//     attachment?: string[];
-//     isPartial?: boolean;
-//     widgets?: Widget[];
-//     documents?: GeneratedDocument[];
-// };
+import type { Message } from "@/lib/chat-type";
 
 type MessageBubbleProps = {
     message: Message;
@@ -34,25 +16,42 @@ export function MessageBubble({ message }: MessageBubbleProps){
     return (
         <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
             <div
-                className={`max-w-[75%] rounded-[10px] px-4 py-3 ${
-                isUser 
-                    ? "bg-blue-600 text-white" 
-                    : "bg-white border border-gray-200 border-l-4 border-l-indigo-600 text-gray-900"
+                className={`max-w-[75%] rounded-soft-lg px-4 py-3 ${
+                isUser
+                    ? "bg-primary text-white"
+                    : "bg-card border border-border border-l-4 border-l-primary text-foreground"
                 }`}
             >
                 {isUser ? (
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <>
+                        {message.content && (
+                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        )}
+                        {message.attachments && message.attachments.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                {message.attachments.map((name, i) => (
+                                    <span
+                                        key={`${name}-${i}`}
+                                        className="flex items-center gap-1 rounded-tight-sm bg-white/15 px-2 py-0.5 text-xs"
+                                    >
+                                        <Paperclip size={11} />
+                                        {name}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </>
                 ) : (
                     <div
                         className="prose prose-sm max-w-none
-                                   prose-headings:mt-4 prose-headings:mb-2
+                                   prose-headings:mt-4 prose-headings:mb-2 prose-headings:text-foreground
                                    prose-h1:text-lg prose-h2:text-base prose-h3:text-sm
-                                   prose-p:my-2 prose-li:my-0.5 prose-hr:my-4"
+                                   prose-p:my-2 prose-p:text-foreground prose-li:my-0.5 prose-li:text-foreground
+                                   prose-strong:text-foreground prose-a:text-primary-accent prose-hr:my-4"
                     >
                         <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={{
-                                // tabel lebar bisa di-scroll horizontal, tidak melebarkan bubble
                                 table: ({ children }) => (
                                     <div className="overflow-x-auto">
                                         <table>{children}</table>
@@ -68,7 +67,7 @@ export function MessageBubble({ message }: MessageBubbleProps){
                 {widgets.length > 0 && (
                     <button
                         onClick={() => openPanel(widgets[0].id)}
-                        className="mt-2 flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:bg-gray-100"
+                        className="mt-2 flex items-center gap-1.5 rounded-md border border-border bg-grey-50 px-3 py-1.5 text-xs font-medium text-primary-accent hover:bg-grey-100"
                     >
                         <PanelRightOpen size={14} />
                         Lihat Visualisasi ({widgets.length})
@@ -78,26 +77,27 @@ export function MessageBubble({ message }: MessageBubbleProps){
                 {message.documents?.map((doc, i) => (
                     <div
                         key={i}
-                        className="mt-2 flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2"
+                        className="mt-2 flex items-center justify-between rounded-md border border-border bg-grey-50 px-3 py-2"
                     >
                         <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-gray-900">{doc.title}</p>
-                            <p className="text-xs text-gray-500">{doc.theme}</p>
+                            <p className="truncate text-sm font-medium text-grey-900">{doc.title}</p>
+                            <p className="text-xs text-grey-600">{doc.theme}</p>
                         </div>
-                            <a
+                        <a
                             href={`${process.env.NEXT_PUBLIC_API_BASE_URL}/documents/download?path=${encodeURIComponent(doc.outputPath)}`}
                             download
-                            className="ml-3 shrink-0 text-xs font-medium text-indigo-600 underline"
+                            className="ml-3 shrink-0 text-xs font-medium text-primary-accent underline"
                         >
                             Download
                         </a>
                     </div>
                 ))}
-                
+
                 {message.isPartial && (
-                <span className="mt-1 inline-block text-xs text-amber-600">
-                    ⚠ Jawaban belum lengkap
-                </span>
+                    <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning-accent">
+                        <TriangleAlert size={12} />
+                        Jawaban belum lengkap
+                    </span>
                 )}
             </div>
         </div>

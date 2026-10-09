@@ -7,7 +7,7 @@ import { useWidgetStore } from "@/lib/store/widgets-store";
 import { sendChatMessage, getConversationMessage, ApiError, type ChatMessage } from "@/lib/api-client";
 import { MessageBubble} from "./message-bubble";
 import { ChatInput } from "./chat-input";
-import type { Widget } from "@/lib/widget-schema";
+import { TriangleAlert } from "lucide-react";
 import type { GeneratedDocument, Message } from "@/lib/chat-type";
 
 // type GeneratedDocument = {
@@ -148,16 +148,25 @@ export function ChatWindow() {
         }
     }
 
-    return (
+        return (
         <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {isHistoryLoading && <p className="text-sm text-gray-400">Memuat riwayat...</p>}
+                {isHistoryLoading && <p className="text-sm text-muted">Memuat riwayat...</p>}
                 {messages.map((msg) => (
                     <MessageBubble key={msg.id} message={msg} />
                 ))}
-                {isLoading && <p className="text-sm text-gray-400">Agent sedang berpikir...</p>}
-                {error && <p className="text-sm text-red-500">Error: {error}</p>}
-                {warning && <p className="text-sm text-amber-600">⚠ {warning}</p>}
+                {isLoading && <p className="text-sm text-muted">Agent sedang berpikir...</p>}
+                {error && (
+                    <p className="rounded-md border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger-accent">
+                        Error: {error}
+                    </p>
+                )}
+                {warning && (
+                    <p className="flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-warning-accent">
+                        <TriangleAlert size={14} className="shrink-0" />
+                        {warning}
+                    </p>
+                )}
             </div>
             <ChatInput onSend={handleSend} disabled={isLoading || isHistoryLoading} />
         </div>

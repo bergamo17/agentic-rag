@@ -15,7 +15,7 @@ export function WidgetGrid ({
     if (widgets.length === 0) {
         return (
             <div className="flex h-full items-center justify-center p-4">
-                <p className="text-sm text-gray 500">
+                <p className="text-sm text-muted">
                     Belum ada widget. Tanyakan sesuatu yang menghasilkan data untuk melihatnya disini.
                 </p>
             </div>
@@ -27,7 +27,7 @@ export function WidgetGrid ({
             {widgets.map((widget, i) => {
                 switch (widget.widget_type) {
                     case "card":
-                        return <CardWidget key={i} title={widget.title} data={widget.data} />;
+                        return <CardWidget key={widget.id ?? i} title={widget.title} data={widget.data} />;
                     case "table":
                         return <TableWidget key={i} title={widget.title} data={widget.data} />;
                     case "chart":
