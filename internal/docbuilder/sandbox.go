@@ -1,14 +1,17 @@
 package docbuilder
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -178,6 +181,56 @@ func verifyOutput(outputDir, outputFile string) (string, error) {
 	return outputPath, nil
 }
 
+func validateOutput(outputDir, ext string) error {
+	info, err := os.Stat(outputDir)
+	if err != nil {
+		return err
+	}
+
+	if info.Size() == 0 {
+		return fmt.Errorf("Output file is empty")
+	}
+
+	switch ext {
+	case "docx", "xlsx":
+		zr, err := zip.OpenReader(outputDir)
+		if err != nil {
+			return fmt.Errorf("%s is not a valid file (broken zip container): %w", ext, err)
+		}
+		defer zr.Close()
+
+		want := map[string]string{"docx": "word/document.xml", "xlsx": "xl/workbook.xml"}[ext]
+		for _, f := range zr.File {
+			if f.Name == want {
+				return nil
+			}
+		}
+		return fmt.Errorf("%s is missing %s, the file is corrupt", ext, want)
+
+	case "pdf":
+		f, err := os.Open(outputDir)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		head := make([]byte, 5)
+		if _, err := io.ReadFull(f, head); err != nil || string(head) != "%PDF-" {
+			return fmt.Errorf("file is not a valid PDF (missing %%PDF- header)")
+		}
+
+	case "md":
+		data, err := os.ReadFile(outputDir)
+		if err != nil {
+			return err
+		}
+		if !utf8.Valid(data) || strings.TrimSpace(string(data)) == "" {
+			return fmt.Errorf("markdown file is empty or not valid UTF-8")
+		}
+	}
+	return nil
+}
+
 func (s *SandboxClient) RunCode(ctx context.Context, code, outputFilename string) (*RunResult, error) {
 	dirs, err := s.prepareRunDirs()
 	if err != nil {
@@ -200,6 +253,12 @@ func (s *SandboxClient) RunCode(ctx context.Context, code, outputFilename string
 		outputPath, err = verifyOutput(dirs.output, outputFilename)
 		if err != nil {
 			return nil, err
+		}
+
+		ext := strings.TrimPrefix(filepath.Ext(outputFilename), ".")
+		if err := validateOutput(outputPath, ext); err != nil {
+			os.RemoveAll(dirs.output)
+			return nil, fmt.Errorf("Output validation failed: %w. Fix the script and run it again.", err)
 		}
 	} else {
 		os.RemoveAll(dirs.output)
