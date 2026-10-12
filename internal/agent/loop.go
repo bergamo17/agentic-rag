@@ -176,6 +176,25 @@ func executeTool(mlClient *mlservice.Client,
 			return "", nil, nil, nil, err
 		}
 
+		if ext == "none" {
+			res, err := sandboxClient.RunCode(ctx, args.Code, "")
+			if err != nil {
+				return "", nil, nil, nil, fmt.Errorf("Failed to execute the code: %w", err)
+			}
+
+			out := util.Truncate(res.StdOut, 4000)
+			if out == "" {
+				out = "(stdout is empty; use print() to display results)"
+			}
+
+			msg := "Code executed.\n\nstdout:\n" + out
+			if se := util.Truncate(res.StdErr, 1000); se != "" {
+				msg += "\n\nstderr:\n" + se
+			}
+
+			return msg, nil, nil, nil, nil
+		}
+
 		result, err := sandboxClient.RunCode(ctx, args.Code, "output."+ext)
 		if err != nil {
 			return "", nil, nil, nil, fmt.Errorf("Failed to execute the code: %w", err)
@@ -195,7 +214,7 @@ func executeTool(mlClient *mlservice.Client,
 		}
 
 		size := int64(0)
-		if st, err := os.Stat(finalPath); err != nil {
+		if st, err := os.Stat(finalPath); err == nil {
 			size = st.Size()
 		}
 

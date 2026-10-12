@@ -201,7 +201,7 @@ func executePythonSchema() openai.Tool {
 					},
 					"output_format": map[string]any{
 						"type":        "string",
-						"enum":        []string{"docx", "pdf", "xlsx", "md"},
+						"enum":        []string{"docx", "pdf", "xlsx", "md", "none"},
 						"description": "File format the script produces. Must match the file extension used in the save path.",
 					},
 					"title": map[string]any{
@@ -209,7 +209,7 @@ func executePythonSchema() openai.Tool {
 						"description": "The generated document's title from the execute_python tool",
 					},
 				},
-				"required": []string{"code", "output_format", "title"},
+				"required": []string{"code", "output_format"},
 			},
 		},
 	}

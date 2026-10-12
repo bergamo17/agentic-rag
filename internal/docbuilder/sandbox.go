@@ -37,6 +37,7 @@ var allowedFormat = map[string]bool{
 	"pdf":  true,
 	"xlsx": true,
 	"md":   true,
+	"none": true,
 }
 
 func NewSandboxClient(inputDir, outputDir string) *SandboxClient {
@@ -193,9 +194,15 @@ func (s *SandboxClient) RunCode(ctx context.Context, code, outputFilename string
 		return nil, fmt.Errorf("Execution failed: %w (stdout: %s, stderr: %s)", err, stdout, stderr)
 	}
 
-	outputPath, err := verifyOutput(dirs.output, outputFilename)
-	if err != nil {
-		return nil, err
+	var outputPath string
+
+	if outputFilename != "" {
+		outputPath, err = verifyOutput(dirs.output, outputFilename)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		os.RemoveAll(dirs.output)
 	}
 
 	return &RunResult{
