@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/bergamo17/agentic-rag-prototype/internal/docbuilder"
 	mlservice "github.com/bergamo17/agentic-rag-prototype/internal/mlservices"
 	"github.com/bergamo17/agentic-rag-prototype/internal/openai"
 	"github.com/bergamo17/agentic-rag-prototype/internal/websearch"
+	"github.com/bergamo17/agentic-rag-prototype/util"
 	"github.com/google/uuid"
 )
 
@@ -192,7 +194,20 @@ func executeTool(mlClient *mlservice.Client,
 			Format:     ext,
 		}
 
-		return fmt.Sprintf("Document '%s' created successfully", args.Title), nil, nil, []openai.GeneratedDocument{doc}, nil
+		size := int64(0)
+		if st, err := os.Stat(finalPath); err != nil {
+			size = st.Size()
+		}
+
+		msg := fmt.Sprintf("Document '%s' (%s, %d bytes) created successfully.", args.Title, ext, size)
+		if out := util.Truncate(result.StdOut, 2000); out != "" {
+			msg += "\n\nstdout:\n" + out
+		}
+		if se := util.Truncate(result.StdErr, 1000); se != "" {
+			msg += "\n\nstderr (warnings):\n" + se
+		}
+
+		return msg, nil, nil, []openai.GeneratedDocument{doc}, nil
 
 	default:
 		return "", nil, nil, nil, fmt.Errorf("Unknown tool: %s", tc.Function.Name)
