@@ -141,15 +141,16 @@ func (h *Handlers) Chat(c *gin.Context) {
 		}
 	}
 
-	answer, err := h.OpenAI.QueryVLM(ctx, req.Query, pageContext)
+	answer, usage, err := h.OpenAI.QueryVLM(ctx, req.Query, pageContext)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"answer": answer,
-		"pages":  pageMeta,
+		"answer":      answer,
+		"pages":       pageMeta,
+		"token_usage": usage.TotalTokens,
 	})
 }
 

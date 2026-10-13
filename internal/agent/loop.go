@@ -251,9 +251,11 @@ func AgentLoop(
 	msgString := getLastUserMessage(messages)
 	dontAllowCustomCode := ClassifyRequest(msgString)
 
+	totalUsage := 0
+
 	for i := 0; i < maxItterations; i++ {
 		log.Printf("Itteration- %d started", i)
-		resp, err := opeaiClient.ChatCompletion(ctx, messages, AvailableTools(dontAllowCustomCode))
+		resp, usage, err := opeaiClient.ChatCompletion(ctx, messages, AvailableTools(dontAllowCustomCode))
 		if err != nil {
 			return "", nil, nil, nil, false, err
 		}
@@ -290,7 +292,11 @@ func AgentLoop(
 				Content:    result,
 				ToolCallID: tc.ID,
 			})
+			
 		}
+
+		totalUsage += usage.TotalTokens
+
 	}
 
 	messages = append(messages, openai.Message{
@@ -299,7 +305,7 @@ func AgentLoop(
 		ToolCall: []openai.ToolCall{},
 	})
 
-	finalResp, err := opeaiClient.ChatCompletion(ctx, messages, []openai.Tool{})
+	finalResp, usage, err := opeaiClient.ChatCompletion(ctx, messages, []openai.Tool{})
 	if err != nil {
 		return "", nil, nil, nil, false, err
 	}
@@ -308,6 +314,8 @@ func AgentLoop(
 	if !ok {
 		return "Sorry, unable to compile a summary of the answer.", usedPages, usedWidgets, usedDocuments, false, nil
 	}
+
+	totalUsage += usage.TotalTokens
 
 	return finalAnswer, usedPages, usedWidgets, usedDocuments, true, nil
 }

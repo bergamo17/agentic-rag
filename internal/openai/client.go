@@ -139,6 +139,7 @@ type chatResponse struct {
 	Choices []struct {
 		Message Message `json:"message"`
 	} `json:"choices"`
+	Usage util.Usage `json:"usage"`
 }
 
 type PageContext struct {
@@ -162,7 +163,7 @@ type GeneratedDocument struct {
 	Format     string `json:"format"`
 }
 
-func (c *Client) ChatCompletion(ctx context.Context, message []Message, tools []Tool) (Message, error) {
+func (c *Client) ChatCompletion(ctx context.Context, message []Message, tools []Tool) (Message, util.Usage, error) {
 	if provider == "anthropic" {
 		return c.chatAnthropic(ctx, message, tools)
 	}
@@ -201,7 +202,7 @@ func NewUserContent(text string, images []ImageInput, docs []DocumentInput) inte
 
 const systemPrompt = `You are an expert professional PDF analyst who gives rigorous in-depth answers. When relevant, mention which page number supports your claims.`
 
-func (c *Client) chatOpenAi(ctx context.Context, message []Message, tools []Tool) (Message, error) {
+func (c *Client) chatOpenAi(ctx context.Context, message []Message, tools []Tool) (Message, util.Usage, error) {
 	reqBody := chatRequest{
 		Model:     modelName,
 		Messages:  message,
@@ -211,12 +212,12 @@ func (c *Client) chatOpenAi(ctx context.Context, message []Message, tools []Tool
 
 	payload, err := json.Marshal(reqBody)
 	if err != nil {
-		return Message{}, err
+		return Message{}, util.Usage{}, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, apiURL, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(payload))
 	if err != nil {
-		return Message{}, err
+		return Message{}, util.Usage{}, err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -224,29 +225,33 @@ func (c *Client) chatOpenAi(ctx context.Context, message []Message, tools []Tool
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return Message{}, err
+		return Message{}, util.Usage{}, err
 	}
 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return Message{}, fmt.Errorf("OpenAI API error (%d): %s", resp.StatusCode, string(body))
+		return Message{}, util.Usage{}, fmt.Errorf("OpenAI API error (%d): %s", resp.StatusCode, string(body))
 	}
 
 	var result chatResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return Message{}, fmt.Errorf("Empty response from OpenAI API")
+		return Message{}, util.Usage{}, fmt.Errorf("Empty response from OpenAI API")
 	}
 
 	if len(result.Choices) == 0 {
-		return Message{}, fmt.Errorf("There is no choices in response")
+		return Message{}, util.Usage{}, fmt.Errorf("There is no choices in response")
 	}
 
-	return result.Choices[0].Message, nil
+	usage := util.Usage{
+		TotalTokens: result.Usage.TotalTokens,
+	}
+
+	return result.Choices[0].Message, usage, nil
 }
 
-func (c *Client) QueryVLM(ctx context.Context, query string, pages []PageContext) (string, error) {
+func (c *Client) QueryVLM(ctx context.Context, query string, pages []PageContext) (string, util.Usage, error) {
 	content := make([]contentBlock, 0, len(pages)*2+1)
 	for _, p := range pages {
 		content = append(content, contentBlock{
@@ -260,18 +265,18 @@ func (c *Client) QueryVLM(ctx context.Context, query string, pages []PageContext
 	}
 	content = append(content, contentBlock{Type: "text", Text: query})
 
-	reply, err := c.ChatCompletion(ctx, []Message{
+	reply, usage, err := c.ChatCompletion(ctx, []Message{
 		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: content},
 	}, nil)
 	if err != nil {
-		return "", err
+		return "", util.Usage{}, err
 	}
 
 	answer, ok := reply.Content.(string)
 	if !ok {
-		return "", fmt.Errorf("response is not a text: %v", reply.Content)
+		return "", util.Usage{}, fmt.Errorf("response is not a text: %v", reply.Content)
 	}
 
-	return answer, nil
+	return answer, usage, nil
 }
