@@ -253,7 +253,7 @@ func AgentLoop(
 
 	for i := 0; i < maxItterations; i++ {
 		log.Printf("Itteration- %d started", i)
-		resp, err := opeaiClient.ChatCompletion(messages, AvailableTools(dontAllowCustomCode))
+		resp, err := opeaiClient.ChatCompletion(ctx, messages, AvailableTools(dontAllowCustomCode))
 		if err != nil {
 			return "", nil, nil, nil, false, err
 		}
@@ -299,7 +299,7 @@ func AgentLoop(
 		ToolCall: []openai.ToolCall{},
 	})
 
-	finalResp, err := opeaiClient.ChatCompletion(messages, []openai.Tool{})
+	finalResp, err := opeaiClient.ChatCompletion(ctx, messages, []openai.Tool{})
 	if err != nil {
 		return "", nil, nil, nil, false, err
 	}

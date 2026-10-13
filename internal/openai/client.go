@@ -2,6 +2,7 @@ package openai
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -161,11 +162,11 @@ type GeneratedDocument struct {
 	Format     string `json:"format"`
 }
 
-func (c *Client) ChatCompletion(message []Message, tools []Tool) (Message, error) {
+func (c *Client) ChatCompletion(ctx context.Context, message []Message, tools []Tool) (Message, error) {
 	if provider == "anthropic" {
-		return c.chatAnthropic(message, tools)
+		return c.chatAnthropic(ctx, message, tools)
 	}
-	return c.chatOpenAi(message, tools)
+	return c.chatOpenAi(ctx, message, tools)
 }
 
 func SupportsPDF() bool { return util.Getenv("LLM_PDF_INPUT", "true") != "false" }
@@ -200,7 +201,7 @@ func NewUserContent(text string, images []ImageInput, docs []DocumentInput) inte
 
 const systemPrompt = `You are an expert professional PDF analyst who gives rigorous in-depth answers. When relevant, mention which page number supports your claims.`
 
-func (c *Client) chatOpenAi(message []Message, tools []Tool) (Message, error) {
+func (c *Client) chatOpenAi(ctx context.Context, message []Message, tools []Tool) (Message, error) {
 	reqBody := chatRequest{
 		Model:     modelName,
 		Messages:  message,
@@ -245,7 +246,7 @@ func (c *Client) chatOpenAi(message []Message, tools []Tool) (Message, error) {
 	return result.Choices[0].Message, nil
 }
 
-func (c *Client) QueryVLM(query string, pages []PageContext) (string, error) {
+func (c *Client) QueryVLM(ctx context.Context, query string, pages []PageContext) (string, error) {
 	content := make([]contentBlock, 0, len(pages)*2+1)
 	for _, p := range pages {
 		content = append(content, contentBlock{
@@ -259,7 +260,7 @@ func (c *Client) QueryVLM(query string, pages []PageContext) (string, error) {
 	}
 	content = append(content, contentBlock{Type: "text", Text: query})
 
-	reply, err := c.ChatCompletion([]Message{
+	reply, err := c.ChatCompletion(ctx, []Message{
 		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: content},
 	}, nil)

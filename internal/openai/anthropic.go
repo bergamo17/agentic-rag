@@ -2,6 +2,7 @@ package openai
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -53,7 +54,7 @@ type anthropicResponse struct {
 	StopReason string           `json:"stop_reason"`
 }
 
-func (c *Client) chatAnthropic(messages []Message, tools []Tool) (Message, error) {
+func (c *Client) chatAnthropic(ctx context.Context, messages []Message, tools []Tool) (Message, error) {
 	system, msgs := toAnthropic(messages)
 	if len(msgs) == 0 {
 		return Message{}, fmt.Errorf("no user message to send to the LLM")

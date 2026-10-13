@@ -105,6 +105,8 @@ type ChatRequest struct {
 func (h *Handlers) Chat(c *gin.Context) {
 	var req ChatRequest
 
+	ctx := c.Request.Context()
+
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -139,7 +141,7 @@ func (h *Handlers) Chat(c *gin.Context) {
 		}
 	}
 
-	answer, err := h.OpenAI.QueryVLM(req.Query, pageContext)
+	answer, err := h.OpenAI.QueryVLM(ctx, req.Query, pageContext)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
@@ -153,6 +155,8 @@ func (h *Handlers) Chat(c *gin.Context) {
 
 func (h *Handlers) ChatAgent(c *gin.Context) {
 	var req ChatRequest
+
+	ctx := c.Request.Context()
 
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -186,7 +190,7 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 	var conv db.Conversation
 
 	if req.ConversationID == "" {
-		conversation, err := h.Q.CreateConversation(c, util.MakeTitle(req.Query))
+		conversation, err := h.Q.CreateConversation(ctx, util.MakeTitle(req.Query))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create conversation."})
 			return
@@ -199,7 +203,7 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 			return
 		}
 
-		existing, err := h.Q.GetConversation(c, convId)
+		existing, err := h.Q.GetConversation(ctx, convId)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get chat history."})
 			return
@@ -214,7 +218,7 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		Content:        req.Query,
 	}
 
-	userMessage, err := h.Q.InsertMessage(c, usrMessage)
+	userMessage, err := h.Q.InsertMessage(ctx, usrMessage)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save the message/chat."})
 		return
@@ -225,7 +229,7 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		Limit:          20,
 	}
 
-	recentMessages, err := h.Q.ListRecentMessages(c, listMessage)
+	recentMessages, err := h.Q.ListRecentMessages(ctx, listMessage)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get the chat history on this conversation."})
 		return
@@ -259,7 +263,7 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		})
 	}
 
-	answer, pages, widgets, docs, isPartial, err := agent.AgentLoop(h.OpenAI, h.Web, h.ML, h.Doc, h.Sand, c, messages)
+	answer, pages, widgets, docs, isPartial, err := agent.AgentLoop(h.OpenAI, h.Web, h.ML, h.Doc, h.Sand, ctx, messages)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
@@ -296,7 +300,7 @@ func (h *Handlers) ChatAgent(c *gin.Context) {
 		}
 	}
 
-	saveContext := context.WithoutCancel(c)
+	saveContext := context.WithoutCancel(ctx)
 
 	assistantMessage, err := h.Q.InsertMessage(saveContext, db.InsertMessageParams{
 		ConversationID: conv.ID,
