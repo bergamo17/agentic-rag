@@ -57,6 +57,8 @@ export function ChatWindow() {
     const clearWidgets = useWidgetStore((s) => s.clearWidgets);
     const upsertConversation = useConversationStore((s) => s.upsert);
 
+    const abortRef = useRef<AbortController | null>(null);
+
     useEffect(() => {
         // URL sudah sinkron dengan layar (mis. baru dibuat dari pesan pertama)
         if (urlConversationId === syncedIdRef.current) return;
@@ -101,6 +103,8 @@ export function ChatWindow() {
 
     async function handleSend(query: string, files: File[]) {
         const session = sessionRef.current;
+        const controller = new AbortController();
+        abortRef.current = controller;
 
         setMessages((prev) => [
             ...prev,
@@ -146,8 +150,9 @@ export function ChatWindow() {
         } finally {
             if (session === sessionRef.current) setIsLoading(false);
         }
-    }
 
+    }
+        const handleStop = () => abortRef.current?.abort();
         return (
         <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -168,7 +173,7 @@ export function ChatWindow() {
                     </p>
                 )}
             </div>
-            <ChatInput onSend={handleSend} disabled={isLoading || isHistoryLoading} />
+            <ChatInput onSend={handleSend} onStop={handleStop} isLoading={isLoading} disabled={isHistoryLoading} />
         </div>
     );
 }

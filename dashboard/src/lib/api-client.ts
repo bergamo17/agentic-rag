@@ -118,7 +118,7 @@ function mapDocuments(raw: RawDocument[] | null | undefined): GeneratedDocument[
     }));
 }
 
-export async function sendChatMessage(query: string, conversationId?: string | null, files: File[] = []): Promise<ChatResult> {
+export async function sendChatMessage(query: string, conversationId?: string | null, files: File[] = [], signal?: AbortSignal): Promise<ChatResult> {
     const formData = new FormData();
     formData.append("query", query);
     if (conversationId) formData.append("conversation_id", conversationId);
@@ -127,6 +127,7 @@ export async function sendChatMessage(query: string, conversationId?: string | n
     const res = await fetch(`${API_BASE_URL}/chat/agent`, {
         method: "POST",
         body: formData,
+        signal: signal,
     });
 
     await ensureOk(res);
