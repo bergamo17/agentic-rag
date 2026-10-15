@@ -115,7 +115,7 @@ export function ChatWindow() {
         setWarning(null);
 
         try {
-            const result = await sendChatMessage(query, syncedIdRef.current, files);
+            const result = await sendChatMessage(query, syncedIdRef.current, files, controller.signal);
 
             // tetap tersimpan di backend, tapi jangan tampilkan di conversation lain
             upsertConversation({ id: result.conversationId, title: result.title });
@@ -144,10 +144,12 @@ export function ChatWindow() {
                 router.replace(`/main/chat?c=${result.conversationId}`, { scroll: false });
             }
         } catch (err) {
+            if (err instanceof DOMException && err.name === "AbortError") return;
             if (session === sessionRef.current) {
                 setError(err instanceof Error ? err.message : "Terjadi Kesalahan");
             }
         } finally {
+            if (abortRef.current === controller) abortRef.current = null;
             if (session === sessionRef.current) setIsLoading(false);
         }
 
